@@ -1,4 +1,4 @@
-import React, { useMemo, useState } from 'react';
+import React, { useContext, useMemo, useState } from 'react';
 import {
   View,
   Text,
@@ -11,13 +11,22 @@ import {
   Alert,
 } from 'react-native';
 import { useTheme } from '../context/ThemeContext';
-import { SCREEN_NAMES, MOCK_ORG_USER } from '../constants/labels';
+import { SCREEN_NAMES } from '../constants/labels';
+import { AuthContext } from '../context/AuthContext';
+import { db } from '../services/firebase';
+import {
+  collection,
+  addDoc,
+  doc,
+  updateDoc,
+  serverTimestamp,
+} from 'firebase/firestore';
 
 const ORG_TABS = [
   { key: 'dashboard', label: 'الشمولية' },
   { key: 'evaluations', label: 'التقييمات' },
   { key: 'interviews', label: 'المقابلات' },
-  { key: 'addJob', label: 'إضافة فرصة' },
+  { key: 'orgJobs', label: 'فُرصي' },
 ];
 
 const BellIcon = ({ color = '#1F1655' }) => (
@@ -104,19 +113,31 @@ const Field = ({
   </View>
 );
 
-const AddJobScreen = ({ navigation }) => {
+const AddJobScreen = ({ navigation, route }) => {
   const { colors, darkMode } = useTheme();
+  const { user } = useContext(AuthContext);
+
+  const editMode = route?.params?.mode === 'edit';
+  const editingJob = route?.params?.job || null;
 
   const [search, setSearch] = useState('');
+
   const [form, setForm] = useState({
-    title: '',
-    description: '',
-    qualifications: '',
-    workEnv: '',
-    dailyHours: '',
-    vacancies: '',
-    benefits: '',
-    notes: '',
+    title: editingJob?.title || '',
+    description: editingJob?.description || '',
+    qualifications:
+      editingJob?.qualifications ||
+      editingJob?.qualificationsList?.join('\n') ||
+      '',
+    workEnv: editingJob?.workEnv || '',
+    dailyHours: editingJob?.dailyHours ? String(editingJob.dailyHours) : '',
+    vacancies: editingJob?.vacancies ? String(editingJob.vacancies) : '',
+    benefits:
+      editingJob?.benefits ||
+      editingJob?.benefitsList?.join('\n') ||
+      '',
+    notes: editingJob?.notes || '',
+    location: editingJob?.location || null,
   });
 
   const palette = useMemo(
@@ -168,9 +189,13 @@ const AddJobScreen = ({ navigation }) => {
       navigation.navigate(SCREEN_NAMES.APPLICANTS_LIST);
       return;
     }
+
+    if (key === 'orgJobs') {
+      navigation.navigate(SCREEN_NAMES.ORG_JOBS);
+    }
   };
 
-  const validateAndSubmit = () => {
+  const validateAndSubmit = async () => {
     const missing = [];
 
     if (!form.title.trim()) missing.push('المسمى الوظيفي');
@@ -188,8 +213,63 @@ const AddJobScreen = ({ navigation }) => {
       return;
     }
 
-    Alert.alert('تم', 'تمت إضافة الفرصة الوظيفية بنجاح');
-    navigation.navigate(SCREEN_NAMES.ORG_DASHBOARD);
+    const payload = {
+      orgId: user?.uid || user?.id || null,
+      orgName: user?.orgName || user?.name || 'منظمة',
+      company: user?.orgName || user?.name || 'منظمة',
+
+      title: form.title.trim(),
+      description: form.description.trim(),
+
+      qualifications: form.qualifications.trim(),
+      qualificationsList: form.qualifications
+        .split('\n')
+        .map((item) => item.trim())
+        .filter(Boolean),
+
+      workEnv: form.workEnv.trim(),
+      dailyHours: Number(form.dailyHours),
+      vacancies: Number(form.vacancies),
+
+      benefits: form.benefits.trim(),
+      benefitsList: form.benefits
+        .split('\n')
+        .map((item) => item.trim())
+        .filter(Boolean),
+
+      notes: form.notes.trim(),
+
+      location: form.location || null,
+      latitude: form.location?.latitude || null,
+      longitude: form.location?.longitude || null,
+
+      inclusivityScore: Number(user?.inclusivityScore || 0),
+
+      status: 'active',
+    };
+
+    try {
+      if (editMode && editingJob?.id) {
+        await updateDoc(doc(db, 'jobs', editingJob.id), {
+          ...payload,
+          updatedAt: serverTimestamp(),
+        });
+
+        Alert.alert('تم', 'تم تعديل الفرصة الوظيفية بنجاح');
+        navigation.navigate(SCREEN_NAMES.ORG_JOBS);
+      } else {
+        await addDoc(collection(db, 'jobs'), {
+          ...payload,
+          createdAt: serverTimestamp(),
+        });
+
+        Alert.alert('تم', 'تمت إضافة الفرصة الوظيفية بنجاح');
+        navigation.navigate(SCREEN_NAMES.ORG_JOBS);
+      }
+    } catch (error) {
+      console.log('SAVE JOB ERROR:', error);
+      Alert.alert('خطأ', 'تعذر حفظ الفرصة الوظيفية. يرجى المحاولة مرة أخرى.');
+    }
   };
 
   return (
@@ -207,7 +287,6 @@ const AddJobScreen = ({ navigation }) => {
         overScrollMode="never"
         keyboardShouldPersistTaps="handled"
       >
-        
         <View style={styles.headerRow}>
           <TouchableOpacity
             style={[styles.iconButton, { backgroundColor: palette.cardBg }]}
@@ -224,21 +303,19 @@ const AddJobScreen = ({ navigation }) => {
           />
 
           <TouchableOpacity
-            style={[styles.iconButton, { backgroundColor: palette.cardBg }]}
+            onPress={() => navigation.navigate(SCREEN_NAMES.NOTIFICATIONS)}
             activeOpacity={0.85}
           >
             <BellIcon color={palette.iconColor} />
           </TouchableOpacity>
         </View>
 
-        
         <View style={styles.welcomeBlock}>
           <Text style={[styles.welcomeHint, { color: palette.subText }]}>
             إدارة الفرص الوظيفية
           </Text>
         </View>
 
-        
         <View style={[styles.searchBar, { backgroundColor: palette.cardBg }]}>
           <View style={styles.searchRightIcon}>
             <SearchIcon color={palette.searchIcon} />
@@ -258,11 +335,10 @@ const AddJobScreen = ({ navigation }) => {
           </View>
         </View>
 
-        
         <View style={styles.tabsContainer}>
           <View style={styles.tabsRow}>
             {ORG_TABS.map((tab) => {
-              const isActive = tab.key === 'addJob';
+              const isActive = tab.key === 'orgJobs';
 
               return (
                 <TouchableOpacity
@@ -290,30 +366,26 @@ const AddJobScreen = ({ navigation }) => {
           </View>
         </View>
 
-        
-        <View
-          style={[
-            styles.heroCard,
-            {
-              backgroundColor: palette.primary,
-            },
-          ]}
-        >
+        <View style={[styles.heroCard, { backgroundColor: palette.primary }]}>
           <View style={styles.heroContent}>
             <View style={styles.heroIconBox}>
               <BriefcaseIcon />
             </View>
 
             <View style={styles.heroTextBlock}>
-              <Text style={styles.heroTitle}>إضافة فرصة وظيفية جديدة</Text>
+              <Text style={styles.heroTitle}>
+                {editMode ? 'تعديل الفرصة الوظيفية' : 'إضافة فرصة وظيفية جديدة'}
+              </Text>
+
               <Text style={styles.heroSubTitle}>
-                اكتب تفاصيل الوظيفة بشكل واضح ومنظم لرفع جودة التقديم وتحسين الوصول للمرشحين المناسبين.
+                {editMode
+                  ? 'عدّلي بيانات الفرصة الوظيفية ثم احفظي التغييرات.'
+                  : 'اكتب تفاصيل الوظيفة بشكل واضح ومنظم لرفع جودة التقديم وتحسين الوصول للمرشحين المناسبين.'}
               </Text>
             </View>
           </View>
         </View>
 
-        
         <View
           style={[
             styles.helperCard,
@@ -326,12 +398,12 @@ const AddJobScreen = ({ navigation }) => {
           <Text style={[styles.helperTitle, { color: palette.primary }]}>
             تلميح
           </Text>
+
           <Text style={[styles.helperText, { color: palette.subText }]}>
             يفضّل كتابة وصف واضح، مؤهلات دقيقة، وعدد الشواغر الفعلي حتى تكون الفرصة أكثر احترافية وأسهل للفهم.
           </Text>
         </View>
 
-        
         <View style={[styles.formCard, { backgroundColor: palette.cardBg }]}>
           <Field
             label="المسمى الوظيفي"
@@ -422,13 +494,50 @@ const AddJobScreen = ({ navigation }) => {
           />
         </View>
 
-        
+        <View style={{ marginBottom: 16 }}>
+          <Text style={[styles.fieldLabel, { color: palette.text }]}>
+            موقع الوظيفة
+          </Text>
+
+          <TouchableOpacity
+            style={{
+              height: 54,
+              borderRadius: 18,
+              borderWidth: 1,
+              borderColor: palette.border,
+              justifyContent: 'center',
+              paddingHorizontal: 16,
+              backgroundColor: palette.cardBg,
+            }}
+            onPress={() =>
+              navigation.navigate('PickLocation', {
+                onSelect: (loc) => {
+                  setForm((prev) => ({
+                    ...prev,
+                    location: loc,
+                  }));
+                },
+              })
+            }
+          >
+            <Text style={{ textAlign: 'right', color: palette.text }}>
+              {form.location
+                ? `📍 ${Number(form.location.latitude).toFixed(3)}, ${Number(
+                    form.location.longitude
+                  ).toFixed(3)}`
+                : 'اضغط لاختيار الموقع من الخريطة'}
+            </Text>
+          </TouchableOpacity>
+        </View>
+
         <TouchableOpacity
           style={[styles.submitBtn, { backgroundColor: palette.primary }]}
           onPress={validateAndSubmit}
           activeOpacity={0.88}
         >
-          <Text style={styles.submitBtnText}>نشر الوظيفة</Text>
+          <Text style={styles.submitBtnText}>
+            {editMode ? 'حفظ التعديلات' : 'نشر الوظيفة'}
+          </Text>
         </TouchableOpacity>
 
         <View style={{ height: 30 }} />
@@ -436,6 +545,8 @@ const AddJobScreen = ({ navigation }) => {
     </View>
   );
 };
+
+export default AddJobScreen;
 
 const styles = StyleSheet.create({
   container: {
@@ -828,5 +939,3 @@ const styles = StyleSheet.create({
     top: 13,
   },
 });
-
-export default AddJobScreen;

@@ -11,6 +11,7 @@ import {
   Platform,
   Modal,
   Image,
+  KeyboardAvoidingView,
 } from 'react-native';
 import DateTimePicker from '@react-native-community/datetimepicker';
 import { SCREEN_NAMES } from '../constants/labels';
@@ -41,7 +42,11 @@ const SelectionModal = ({
         <View style={styles.modalCard}>
           <Text style={styles.modalTitle}>{title}</Text>
 
-          <ScrollView showsVerticalScrollIndicator={false}>
+          <ScrollView
+  contentContainerStyle={styles.content}
+  showsVerticalScrollIndicator={false}
+  keyboardShouldPersistTaps="handled"
+>
             {options.map((item) => {
               const isSelected = selectedValue === item;
               return (
@@ -206,30 +211,54 @@ const SignUpJobSeekerScreen = ({ navigation }) => {
     return true;
   };
 
-  const handleNext = () => {
-    if (!validateStep1()) return;
+   const handleNext = () => {
+  if (!validateStep1()) return;
 
-    const payload = {
-      ...form,
-      city: form.city === 'أخرى' ? form.customCity.trim() : form.city,
-      education: form.education === 'أخرى' ? form.customEducation.trim() : form.education,
-    };
+  const finalCity =
+    form.city === 'أخرى' ? form.customCity.trim() : form.city.trim();
 
-    navigation.replace(SCREEN_NAMES.SIGNUP_JOB_SEEKER_STEP2, {
-      form: payload,
-    });
+  const finalEducation =
+    form.education === 'أخرى'
+      ? form.customEducation.trim()
+      : form.education.trim();
+
+  const payload = {
+    role: 'jobSeeker',
+    name: form.name.trim(),
+    phone: form.phone.trim(),
+    birthDate: form.birthDate.trim(),
+    email: form.email.trim().toLowerCase(),
+    city: finalCity,
+    nationality: form.nationality,
+    workPermit: form.workPermit.trim(),
+    education: finalEducation,
+    experience: form.experience.trim(),
+    step1CompletedAt: new Date().toISOString(),
+
+    ...(form.city === 'أخرى' && form.customCity.trim()
+      ? { customCity: form.customCity.trim() }
+      : {}),
+
+    ...(form.education === 'أخرى' && form.customEducation.trim()
+      ? { customEducation: form.customEducation.trim() }
+      : {}),
   };
 
-  const onChangeDate = (_, selectedDate) => {
-    setShowDatePicker(false);
+  navigation.replace(SCREEN_NAMES.SIGNUP_JOB_SEEKER_STEP2, {
+    form: payload,
+  });
+};
+   const onChangeDate = (_, selectedDate) => {
+  setShowDatePicker(false);
 
-    if (selectedDate) {
-      const yyyy = selectedDate.getFullYear();
-      const mm = String(selectedDate.getMonth() + 1).padStart(2, '0');
-      const dd = String(selectedDate.getDate()).padStart(2, '0');
-      update('birthDate', `${yyyy}-${mm}-${dd}`);
-    }
-  };
+  if (!selectedDate) return;
+
+  const yyyy = selectedDate.getFullYear();
+  const mm = String(selectedDate.getMonth() + 1).padStart(2, '0');
+  const dd = String(selectedDate.getDate()).padStart(2, '0');
+
+  update('birthDate',`${yyyy}-${mm}-${dd}`);
+};
 
   const renderRequiredLabel = (text) => (
     <Text style={styles.fieldLabel}>
@@ -244,7 +273,10 @@ const SignUpJobSeekerScreen = ({ navigation }) => {
   );
 
   return (
-    <View style={styles.container}>
+    <KeyboardAvoidingView
+    style={styles.container}
+    behavior={Platform.OS === 'ios' ? 'padding' : undefined}
+    keyboardVerticalOffset={10}>
       <StatusBar barStyle="dark-content" backgroundColor="#F3F1FA" />
 
       <SelectionModal
@@ -273,7 +305,11 @@ const SignUpJobSeekerScreen = ({ navigation }) => {
 
       
       <View style={styles.headerRow}>
-        <TouchableOpacity style={styles.iconButton} onPress={handleNext} activeOpacity={0.85}>
+<TouchableOpacity
+  style={styles.iconButton}
+  onPress={() => navigation.goBack()}
+  activeOpacity={0.85}
+>
           <BackArrowIcon color="#4B3F72" />
         </TouchableOpacity>
 
@@ -467,9 +503,10 @@ const SignUpJobSeekerScreen = ({ navigation }) => {
 
         <View style={{ height: 30 }} />
       </ScrollView>
-    </View>
+    </KeyboardAvoidingView>
   );
 };
+
 
 const styles = StyleSheet.create({
   container: {

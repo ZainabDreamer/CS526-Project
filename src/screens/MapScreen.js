@@ -1,4 +1,6 @@
-import React, { useMemo, useState, useCallback } from 'react';
+import React, { useMemo, useState, useCallback, useRef } from 'react';
+import * as Location from 'expo-location';
+import { useFocusEffect } from '@react-navigation/native';
 import {
   View,
   Text,
@@ -12,8 +14,9 @@ import {
 } from 'react-native';
 import MapView, { Marker } from 'react-native-maps';
 import { SCREEN_NAMES } from '../constants/labels';
-import { mockMapLocations } from '../data/mockData';
 import { useTheme } from '../context/ThemeContext';
+import { db } from '../services/firebase';
+import { collection, getDocs, orderBy, query } from 'firebase/firestore';
 
 const BellIcon = ({ color = '#1F1655' }) => (
   <View style={styles.bellShapeWrap}>
@@ -82,66 +85,6 @@ const SAUDI_REGION = {
   longitudeDelta: 12,
 };
 
-const fallbackLocations = [
-  {
-    id: 'fallback-1',
-    latitude: 24.7136,
-    longitude: 46.6753,
-    city: 'الرياض',
-    title: 'فرصة في الرياض',
-    address: 'الرياض، المملكة العربية السعودية',
-    company: 'جهة داعمة',
-    isNearby: false,
-  },
-  {
-    id: 'fallback-2',
-    latitude: 26.4207,
-    longitude: 50.0888,
-    city: 'الدمام',
-    title: 'فرصة في الدمام',
-    address: 'الدمام، المملكة العربية السعودية',
-    company: 'جهة داعمة',
-    isNearby: true,
-  },
-  {
-    id: 'fallback-3',
-    latitude: 21.5433,
-    longitude: 39.1728,
-    city: 'جدة',
-    title: 'فرصة في جدة',
-    address: 'جدة، المملكة العربية السعودية',
-    company: 'جهة داعمة',
-    isNearby: false,
-  },
-];
-
-/*
-  مهيأ للـ API:
-  لاحقًا إذا جاءت البيانات من backend أو Firebase أو أي API،
-  فقط مرريها لهذا الـ normalizer وسيحوّلها لنفس الشكل الذي تحتاجه الواجهة.
-*/
-const normalizeLocationData = (locations = []) => {
-  const source = locations.length ? locations : fallbackLocations;
-
-  return source.map((loc, index) => {
-    const fallback = fallbackLocations[index % fallbackLocations.length];
-
-    return {
-      id: String(loc.id ?? fallback.id ?? index),
-      title: loc.title || loc.name || fallback.title || 'فرصة وظيفية',
-      city: loc.city || loc.location || fallback.city || 'السعودية',
-      company: loc.company || loc.organization || fallback.company || 'جهة معتمدة',
-      address: loc.address || `${loc.city || fallback.city || 'السعودية'}`,
-      latitude: Number(loc.latitude ?? loc.lat ?? fallback.latitude),
-      longitude: Number(loc.longitude ?? loc.lng ?? loc.lon ?? fallback.longitude),
-      isNearby: Boolean(loc.isNearby),
-      jobId: loc.jobId ?? loc.id ?? String(index),
-      description: loc.description || 'فرصة مناسبة ضمن بيئة عمل داعمة للشمولية.',
-      image: loc.image || null,
-    };
-  });
-};
-
 const buildGoogleMapsDirectionsUrl = ({ latitude, longitude }) => {
   return `https://www.google.com/maps/dir/?api=1&destination=${latitude},${longitude}&travelmode=driving`;
 };
@@ -153,6 +96,11 @@ const buildGoogleMapsSearchUrl = ({ latitude, longitude, label }) => {
 
 const MapScreen = ({ navigation }) => {
   const { colors, darkMode } = useTheme();
+  const [jobs, setJobs] = useState([]);
+  const mapRef = useRef(null);
+  const [userLocation, setUserLocation] = useState(null);
+  const [selectedLocation, setSelectedLocation] = useState(null);
+  const [mapRegion, setMapRegion] = useState(SAUDI_REGION);
 
   const palette = {
     pageBg: colors.background,
@@ -181,9 +129,71 @@ const MapScreen = ({ navigation }) => {
   };
 
   const [showPermission, setShowPermission] = useState(true);
-  const locations = useMemo(() => normalizeLocationData(mockMapLocations), []);
-  const [selectedLocation, setSelectedLocation] = useState(locations[0]);
-  const [mapRegion, setMapRegion] = useState(SAUDI_REGION);
+ useFocusEffect(
+  useCallback(() => {
+    const loadJobsAndLocation = async () => {
+      try {
+        const q = query(collection(db, 'jobs'), orderBy('createdAt', 'desc'));
+const snapshot = await getDocs(q);
+
+const storedJobs = snapshot.docs.map((docSnap) => ({
+  id: docSnap.id,
+  ...docSnap.data(),
+}));
+
+console.log('FIREBASE MAP JOBS:', storedJobs);
+setJobs(storedJobs);
+
+
+        const { status } = await Location.requestForegroundPermissionsAsync();
+
+        if (status === 'granted') {
+          const current = await Location.getCurrentPositionAsync({});
+          const coords = {
+            latitude: current.coords.latitude,
+            longitude: current.coords.longitude,
+          };
+
+          setUserLocation(coords);
+
+          setMapRegion({
+            ...coords,
+            latitudeDelta: 0.08,
+            longitudeDelta: 0.08,
+          });
+        }
+      } catch (error) {
+        setJobs([]);
+      }
+    };
+
+    loadJobsAndLocation();
+  }, [])
+);
+
+const locations = useMemo(() => {
+  return jobs
+    .filter(
+  (job) =>
+    job.location &&
+    job.location.latitude != null &&
+    job.location.longitude != null
+)
+    .map((job) => ({
+      id: job.id,
+      title: job.title || job.jobTitle || 'فرصة وظيفية',
+      city: job.location?.city || job.city || 'موقع محدد',
+      company: job.orgName || 'جهة توظيف',
+      address: job.location?.address || 'موقع الوظيفة على الخريطة',
+      latitude: Number(job.location.latitude),
+      longitude: Number(job.location.longitude),
+      isNearby: false,
+      jobId: job.id,
+      description: job.description || 'لا يوجد وصف متاح حالياً لهذه الوظيفة.',
+      rawJob: job,
+    }));
+}, [jobs]);
+      
 
   const handleAllow = useCallback(() => {
     setShowPermission(false);
@@ -231,21 +241,15 @@ const MapScreen = ({ navigation }) => {
   }, [selectedLocation]);
 
   const handleOpenDetails = useCallback(() => {
-    if (!selectedLocation) return;
+  if (!selectedLocation) {
+    Alert.alert('تنبيه', 'اختاري فرصة من الخريطة أولاً.');
+    return;
+  }
 
-    navigation.navigate(SCREEN_NAMES.JOB_DETAILS, {
-      job: {
-        id: selectedLocation.jobId,
-        title: selectedLocation.title,
-        company: selectedLocation.company,
-        location: selectedLocation.city,
-        description: selectedLocation.description,
-        latitude: selectedLocation.latitude,
-        longitude: selectedLocation.longitude,
-        address: selectedLocation.address,
-      },
-    });
-  }, [navigation, selectedLocation]);
+  navigation.navigate(SCREEN_NAMES.JOB_DETAILS, {
+    job: selectedLocation.rawJob,
+  });
+}, [navigation, selectedLocation]);
 
   return (
     <View style={[styles.container, { backgroundColor: palette.pageBg }]}>
@@ -257,11 +261,12 @@ const MapScreen = ({ navigation }) => {
       
       <View style={styles.headerRow}>
         <TouchableOpacity
-          style={[styles.iconButton, { backgroundColor: palette.iconBg }]}
-          activeOpacity={0.85}
-        >
-          <BellIcon color={palette.iconColor} />
-        </TouchableOpacity>
+  
+  onPress={() => navigation.navigate(SCREEN_NAMES.NOTIFICATIONS)}
+  activeOpacity={0.85}
+>
+  <BellIcon color={palette.iconColor} />
+</TouchableOpacity>
 
         <Image
           source={require('../../assets/logo2.png')}
@@ -281,31 +286,39 @@ const MapScreen = ({ navigation }) => {
       
       <View style={[styles.mapWrapper, { backgroundColor: palette.mapCardBg }]}>
         <MapView
-          style={styles.map}
-          region={mapRegion}
-          initialRegion={SAUDI_REGION}
-          showsCompass
-          showsScale
-          showsUserLocation={!showPermission}
-          showsMyLocationButton={false}
-          toolbarEnabled={false}
-        >
-          {locations.map((loc) => (
-            <Marker
-              key={loc.id}
-              coordinate={{
-                latitude: loc.latitude,
-                longitude: loc.longitude,
-              }}
-              title={loc.title}
-              description={loc.city}
-              onPress={() => handleMarkerPress(loc)}
-            >
-              <LocationPinIcon />
-            </Marker>
-          ))}
-        </MapView>
+  style={styles.map}
+  region={mapRegion}
+  initialRegion={SAUDI_REGION}
+  showsCompass
+  showsScale
+  showsUserLocation={!showPermission}
+  showsMyLocationButton={false}
+  toolbarEnabled={false}
+>
+  {userLocation && (
+    <Marker
+      coordinate={userLocation}
+      title="موقعي الحالي"
+      description="أنت هنا"
+      pinColor="#36B487"
+    />
+  )}
 
+  {locations.map((loc) => (
+    <Marker
+      key={loc.id}
+      coordinate={{
+        latitude: loc.latitude,
+        longitude: loc.longitude,
+      }}
+      title={loc.title}
+      description={loc.city}
+      onPress={() => handleMarkerPress(loc)}
+    >
+      <LocationPinIcon />
+    </Marker>
+  ))}
+</MapView>
         
         <TouchableOpacity
           style={[styles.searchMapBtn, { backgroundColor: palette.searchBtnBg }]}
@@ -331,18 +344,18 @@ const MapScreen = ({ navigation }) => {
   
   <View style={styles.locationInfo}>
     <Text style={[styles.locationTitle, { color: palette.text }]}>
-      {selectedLocation?.title || 'فرصة وظيفية'}
+      {selectedLocation?.title || 'اختر فرصة من الخريطة'}
     </Text>
 
     <View style={styles.locationRow}>
       <SmallLocationIcon />
       <Text style={[styles.locationCity, { color: palette.trackText }]}>
-        {selectedLocation?.city || 'السعودية'}
+        {selectedLocation?.city || 'اضغط/ي على الدبوس لعرض التفاصيل'}
       </Text>
     </View>
 
     <Text style={[styles.moreDetails, { color: palette.muted }]}>
-      {selectedLocation?.address || 'للمزيد من التفاصيل'}
+      {selectedLocation?.address || 'موقع الوظيفة على الخريطة'}
     </Text>
 
     {selectedLocation?.isNearby && (
@@ -650,6 +663,8 @@ const styles = StyleSheet.create({
     fontWeight: '800',
     textAlign: 'right',
     writingDirection: 'rtl',
+    paddingHorizontal: 10,
+
   },
 
   locationRow: {
@@ -683,7 +698,7 @@ const styles = StyleSheet.create({
   },
 
   locationCity: {
-    fontSize: 14,
+    fontSize: 12,
     textAlign: 'right',
     writingDirection: 'rtl',
     fontWeight: '700',
@@ -694,6 +709,8 @@ const styles = StyleSheet.create({
     textAlign: 'right',
     marginTop: 8,
     writingDirection: 'rtl',
+    paddingHorizontal: 10,
+
   },
 
   nearbyBadge: {

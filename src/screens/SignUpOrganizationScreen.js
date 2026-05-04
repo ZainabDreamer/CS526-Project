@@ -10,6 +10,8 @@ import {
   Alert,
   Modal,
   Image,
+  KeyboardAvoidingView,
+  Platform,
 } from 'react-native';
 import { SCREEN_NAMES } from '../constants/labels';
 
@@ -166,9 +168,6 @@ const SignUpOrganizationScreen = ({ navigation }) => {
     if (form.orgSector === 'أخرى' && !form.customOrgSector.trim()) {
       missing.push('قطاع المنظمة الآخر');
     }
-    if (form.sectorSize === 'أخرى' && !form.customSectorSize.trim()) {
-      missing.push('حجم القطاع الآخر');
-    }
 
     if (missing.length > 0) {
       Alert.alert(
@@ -208,35 +207,48 @@ const SignUpOrganizationScreen = ({ navigation }) => {
       return false;
     }
 
-    if (form.sectorSize === 'أخرى' && form.customSectorSize.trim().length < 2) {
-      Alert.alert('خطأ', 'يرجى كتابة حجم قطاع صحيح');
-      return false;
-    }
-
     return true;
   };
 
   const handleNext = () => {
-    if (!validateStep1()) return;
+  if (!validateStep1()) return;
 
-    navigation.navigate(SCREEN_NAMES.SIGNUP_ORGANIZATION_STEP2, {
-      form: {
-        ...form,
-        representativeName: form.representativeName.trim(),
-        username: form.username.trim(),
-        phone: form.phone.trim(),
-        orgName: form.orgName.trim(),
-        sectorSize:
-          form.sectorSize === 'أخرى'
-            ? form.customSectorSize.trim()
-            : form.sectorSize,
-        orgSector:
-          form.orgSector === 'أخرى'
-            ? form.customOrgSector.trim()
-            : form.orgSector,
-      },
-    });
+  const finalSectorSize =
+    form.sectorSize === 'أخرى'
+      ? form.customSectorSize.trim()
+      : form.sectorSize.trim();
+
+  const finalOrgSector =
+    form.orgSector === 'أخرى'
+      ? form.customOrgSector.trim()
+      : form.orgSector.trim();
+
+  const payload = {
+    role: 'organization',
+    representativeName: form.representativeName.trim(),
+    username: form.username.trim().toLowerCase(),
+    phone: form.phone.trim(),
+    orgName: form.orgName.trim(),
+    name: form.orgName.trim(),
+    orgSector: finalOrgSector,
+    step1CompletedAt: new Date().toISOString(),
+
+    ...(finalSectorSize ? { sectorSize: finalSectorSize } : {}),
+
+    ...(form.sectorSize === 'أخرى' && form.customSectorSize.trim()
+      ? { customSectorSize: form.customSectorSize.trim() }
+      : {}),
+
+    ...(form.orgSector === 'أخرى' && form.customOrgSector.trim()
+      ? { customOrgSector: form.customOrgSector.trim() }
+      : {}),
   };
+
+  navigation.navigate(SCREEN_NAMES.SIGNUP_ORGANIZATION_STEP2, {
+    form: payload,
+  });
+};
+      
 
   const renderRequiredLabel = (text) => (
     <Text style={styles.fieldLabel}>
@@ -251,7 +263,11 @@ const SignUpOrganizationScreen = ({ navigation }) => {
   );
 
   return (
-    <View style={styles.container}>
+  <KeyboardAvoidingView
+    style={styles.container}
+    behavior={Platform.OS === 'ios' ? 'padding' : undefined}
+    keyboardVerticalOffset={10}
+  > 
       <StatusBar barStyle="dark-content" backgroundColor="#F3F1FA" />
 
       <SelectionModal
@@ -297,10 +313,11 @@ const SignUpOrganizationScreen = ({ navigation }) => {
         <View style={styles.headerSpacer} />
       </View>
 
-      <ScrollView
-        contentContainerStyle={styles.content}
-        showsVerticalScrollIndicator={false}
-      >
+       <ScrollView
+  contentContainerStyle={styles.content}
+  showsVerticalScrollIndicator={false}
+  keyboardShouldPersistTaps="handled"
+>
         <View style={styles.sectionHeader}>
           <Text style={styles.sectionHint}> </Text>
           <Text style={styles.sectionTitle}>إنشاء حساب جهة</Text>
@@ -467,7 +484,7 @@ const SignUpOrganizationScreen = ({ navigation }) => {
 
         <View style={{ height: 30 }} />
       </ScrollView>
-    </View>
+    </KeyboardAvoidingView>
   );
 };
 

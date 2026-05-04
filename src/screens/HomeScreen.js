@@ -1,4 +1,7 @@
-import React, { useMemo, useState, useCallback } from 'react';
+import React, { useMemo, useState, useCallback, useContext } from 'react';
+import { showOnceLocalNotification } from '../services/notificationService';
+import * as Notifications from 'expo-notifications';
+import { useEffect } from 'react';
 import {
   View,
   Text,
@@ -9,12 +12,16 @@ import {
   TextInput,
   Dimensions,
 } from 'react-native';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 import { useFocusEffect } from '@react-navigation/native';
 import { LinearGradient } from 'expo-linear-gradient';
 import Svg, { Circle } from 'react-native-svg';
 import { useTheme } from '../context/ThemeContext';
-import { SCREEN_NAMES, MOCK_USER } from '../constants/labels';
+import { SCREEN_NAMES } from '../constants/labels';
+import { AuthContext } from '../context/AuthContext';
 import AppHeader from '../components/AppHeader';
+import { db } from '../services/firebase';
+import { collection, getDocs, orderBy, query, where } from 'firebase/firestore';
 
 const { width } = Dimensions.get('window');
 
@@ -25,53 +32,7 @@ const HOME_TABS = [
   { key: 'map', label: 'الخريطة' },
 ];
 
-const featuredCompanies = [
-  {
-    id: 'f1',
-    company: 'البنك السعودي',
-    title: 'فرصة وظيفية لتحليل بيانات',
-    tags: ['الدمام', 'حضوري', 'إعاقة حركية'],
-  },
-  {
-    id: 'f2',
-    company: 'شركة الاتصالات',
-    title: 'وظيفة خدمة عملاء رقمية',
-    tags: ['الخبر', 'عن بعد', 'دعم سمعي'],
-  },
-  {
-    id: 'f3',
-    company: 'مستشفى خاص',
-    title: 'منسق دعم إداري',
-    tags: ['الظهران', 'حضوري', 'بيئة مهيأة'],
-  },
-];
 
-const currentJobs = [
-  {
-    id: 'j1',
-    title: 'موظف موارد بشرية',
-    location: 'الدمام',
-    score: 79,
-    scoreColor: '#F39A57',
-    scoreLabel: 'نسبة الشمولية',
-  },
-  {
-    id: 'j2',
-    title: 'موظف دعم فني',
-    location: 'الخبر',
-    score: 86,
-    scoreColor: '#56B692',
-    scoreLabel: 'نسبة الشمولية',
-  },
-  {
-    id: 'j3',
-    title: 'أخصائي خدمة عملاء',
-    location: 'الظهران',
-    score: 82,
-    scoreColor: '#F39A57',
-    scoreLabel: 'نسبة الشمولية',
-  },
-];
 
 const SearchIcon = ({ color = '#8F8B9E' }) => (
   <View style={styles.searchIconWrap}>
@@ -149,15 +110,153 @@ const ProgressRing = ({
 
 const HomeScreen = ({ navigation }) => {
   const { colors, darkMode } = useTheme();
+  const { user } = useContext(AuthContext);
+  const firstName = (user?.name || 'مستخدم شمولية').trim().split(' ')[0];
   const [activeTab, setActiveTab] = useState('jobs');
   const [search, setSearch] = useState('');
+  const [storedJobs, setStoredJobs] = useState([]);
+  const [showCongrats, setShowCongrats] = useState(false);
+  const [latestInterviewDate, setLatestInterviewDate] = useState(null);
+
+  useEffect(() => {
+    const subscription = Notifications.addNotificationResponseReceivedListener(
+      (response) => {
+        const screen = response.notification.request.content.data?.screen;
+
+        if (screen) {
+          navigation.navigate(screen);
+        }
+      }
+    );
+
+    return () => subscription.remove();
+  }, [navigation]);
 
   useFocusEffect(
-    useCallback(() => {
-      setActiveTab('jobs');
-    }, [])
-  );
+  useCallback(() => {
+    const loadJobs = async () => {
+      try {
+        setActiveTab('jobs');
 
+        const q = query(collection(db, 'jobs'), orderBy('createdAt', 'desc'));
+        const snapshot = await getDocs(q);
+        const evaluationsSnapshot = await getDocs(collection(db, 'evaluations'));
+
+const evaluations = evaluationsSnapshot.docs.map((docSnap) => ({
+  id: docSnap.id,
+  ...docSnap.data(),
+}));
+
+const evaluationsCountByOrg = {};
+
+evaluations.forEach((evaluation) => {
+  const orgId = evaluation.orgId || evaluation.company?.id;
+
+  if (!orgId) return;
+
+  evaluationsCountByOrg[orgId] = (evaluationsCountByOrg[orgId] || 0) + 1;
+});
+
+        const jobs = snapshot.docs.map((docSnap) => ({
+          id: docSnap.id,
+          ...docSnap.data(),
+        }));
+
+        const mappedJobs = jobs.map((job) => {
+          const score = Number(job.inclusivityScore ?? 0);
+
+          return {
+            ...job,
+            title: job.title || 'فرصة وظيفية',
+            location:
+              job.location?.city ||
+              job.city ||
+              job.workEnv ||
+              'غير محدد',
+            company: job.company || job.orgName || 'جهة معتمدة',
+            orgId: job.orgId || null,
+            orgName: job.orgName || job.company || 'جهة معتمدة',
+            score,
+            scoreColor:
+              score >= 80 ? '#56B692' : score >= 60 ? '#F39A57' : '#D94A4A',
+              evaluationsCount: evaluationsCountByOrg[job.orgId] || 0,
+scoreLabel:
+  (evaluationsCountByOrg[job.orgId] || 0) > 0
+    ? `${evaluationsCountByOrg[job.orgId]} تقييم`
+    : 'لا توجد تقييمات',
+            tags: [
+              job.location?.city || job.city || 'موقع غير محدد',
+              job.workEnv || 'بيئة غير محددة',
+              job.vacancies ? `${job.vacancies} شواغر` : 'فرصة متاحة',
+            ],
+          };
+        });
+
+        setStoredJobs(mappedJobs);
+
+        const userId = user?.uid || user?.id;
+
+        if (userId) {
+          const interviewsQuery = query(
+            collection(db, 'interviews'),
+            where('applicantId', '==', userId)
+          );
+
+          const interviewsSnapshot = await getDocs(interviewsQuery);
+
+          if (!interviewsSnapshot.empty) {
+            const interviews = interviewsSnapshot.docs.map((docSnap) => ({
+              id: docSnap.id,
+              ...docSnap.data(),
+            }));
+
+            const sortedInterviews = interviews.sort((a, b) => {
+              const aDate = a.date ? new Date(a.date) : new Date(0);
+              const bDate = b.date ? new Date(b.date) : new Date(0);
+              return bDate - aDate;
+            });
+
+            const latest = sortedInterviews[0];
+            const latestDate = latest?.date || null;
+
+            setLatestInterviewDate(latestDate);
+
+            const storageKey = `lastSeenInterviewDate_${userId}`;
+            const lastSeen = await AsyncStorage.getItem(storageKey);
+
+            if (
+  latestDate &&
+  (!lastSeen || new Date(latestDate) > new Date(lastSeen))
+) {
+  setShowCongrats(true);
+
+  await showOnceLocalNotification(
+  `newInterview_${userId}_${latest?.id || latestDate}`,
+  'مبروك! 🎉',
+  'تم تحديد مقابلة وظيفية جديدة لك.',
+  { screen: SCREEN_NAMES.JOB_SEEKER_INTERVIEWS },
+  userId
+); 
+
+} else {
+  setShowCongrats(false);
+}
+          } else {
+            setShowCongrats(false);
+          }
+        } else {
+          setShowCongrats(false);
+        }
+      } catch (error) {
+        console.log('LOAD FIREBASE JOBS ERROR:', error);
+        setStoredJobs([]);
+        setShowCongrats(false);
+      }
+    };
+
+    loadJobs();
+  }, [user])
+);
   const palette = {
     pageBg: colors.background,
     cardBg: colors.card,
@@ -174,25 +273,34 @@ const HomeScreen = ({ navigation }) => {
     heroBorder: darkMode ? '#3A3650' : '#F0ECF8',
   };
 
-  const filteredFeatured = useMemo(() => {
-    if (!search.trim()) return featuredCompanies;
-    const q = search.trim().toLowerCase();
-    return featuredCompanies.filter((item) => {
-      const company = item.company.toLowerCase();
-      const title = item.title.toLowerCase();
-      return company.includes(q) || title.includes(q);
-    });
-  }, [search]);
+   const filteredFeatured = useMemo(() => {
+  const source = storedJobs.slice(0, 5);
 
-  const filteredJobs = useMemo(() => {
-    if (!search.trim()) return currentJobs;
-    const q = search.trim().toLowerCase();
-    return currentJobs.filter((item) => {
-      const title = item.title.toLowerCase();
-      const location = item.location.toLowerCase();
-      return title.includes(q) || location.includes(q);
-    });
-  }, [search]);
+  if (!search.trim()) return source;
+
+   const q = search.trim().toLowerCase();
+
+   return source.filter((item) => {
+    const company = String(item.company || '').toLowerCase();
+    const title = String(item.title || '').toLowerCase();
+    return company.includes(q) || title.includes(q);
+   });
+   }, [search, storedJobs]);
+
+   const allJobs = useMemo(() => storedJobs, [storedJobs]);
+   const filteredJobs = useMemo(() => {
+  if (!search.trim()) return allJobs;
+
+  const q = search.trim().toLowerCase();
+
+  return allJobs.filter((item) => {
+    const title = String(item.title || '').toLowerCase();
+    const location = String(item.location || '').toLowerCase();
+    const company = String(item.company || '').toLowerCase();
+
+    return title.includes(q) || location.includes(q) || company.includes(q);
+  });
+}, [search, allJobs]);
 
   const handleTabPress = (key) => {
     setActiveTab(key);
@@ -232,33 +340,58 @@ const HomeScreen = ({ navigation }) => {
         />
 
         <View style={styles.welcomeBlock}>
-          <Text
-            style={[styles.welcomeLine, { color: palette.text }]}
-            numberOfLines={1}
-            ellipsizeMode="tail"
-          >
-            مرحبًا بك {MOCK_USER?.name || 'مستخدم شمولية'}
-          </Text>
-        </View>
+  <Text
+    style={[styles.welcomeLine, { color: palette.text }]}
+    numberOfLines={1}
+    ellipsizeMode="tail"
+  >
+    مرحبًا بك ، {firstName}
+  </Text>
+</View>
 
-        <View style={[styles.searchBar, { backgroundColor: palette.cardBg }]}>
-          <View style={styles.searchRightIcon}>
-            <SearchIcon color={palette.iconMuted} />
-          </View>
+{showCongrats && (
+  <TouchableOpacity
+    style={styles.congratsCard}
+    activeOpacity={0.9}
+    onPress={async () => {
+      const userId = user?.uid || user?.id;
 
-          <TextInput
-            style={[styles.searchInput, { color: palette.text }]}
-            placeholder="ابحث عن وظيفة"
-            placeholderTextColor={palette.placeholder}
-            value={search}
-            onChangeText={setSearch}
-            textAlign="right"
-          />
+      if (userId && latestInterviewDate) {
+        await AsyncStorage.setItem(
+          `lastSeenInterviewDate_${userId}`,
+          latestInterviewDate
+        );
+      }
 
-          <View style={styles.searchLeftIcon}>
-            <FilterIcon color={palette.iconMuted} />
-          </View>
-        </View>
+      setShowCongrats(false);
+      navigation.navigate(SCREEN_NAMES.JOB_SEEKER_INTERVIEWS);
+    }}
+  >
+    <Text style={styles.congratsTitle}>🎉 مبروك!</Text>
+    <Text style={styles.congratsText}>
+      تم قبولك لمقابلة وظيفية جديدة، اضغطي هنا لعرض التفاصيل.
+    </Text>
+  </TouchableOpacity>
+)}
+
+<View style={[styles.searchBar, { backgroundColor: palette.cardBg }]}>
+  <View style={styles.searchRightIcon}>
+    <SearchIcon color={palette.iconMuted} />
+  </View>
+
+  <TextInput
+    style={[styles.searchInput, { color: palette.text }]}
+    placeholder="ابحث عن وظيفة"
+    placeholderTextColor={palette.placeholder}
+    value={search}
+    onChangeText={setSearch}
+    textAlign="right"
+  />
+
+  <View style={styles.searchLeftIcon}>
+    <FilterIcon color={palette.iconMuted} />
+  </View>
+</View>
 
         <View style={styles.tabsContainer}>
           <View style={styles.tabsRow}>
@@ -314,20 +447,15 @@ const HomeScreen = ({ navigation }) => {
               <TouchableOpacity
                 key={item.id}
                 style={[
-                  styles.featuredCardTouch,
-                  index === filteredFeatured.length - 1 && styles.featuredLastCard,
-                ]}
+  styles.featuredCardTouch,
+  index === filteredFeatured.length - 1 && styles.featuredLastCard,
+]}
                 activeOpacity={0.92}
                 onPress={() =>
-                  navigation.navigate(SCREEN_NAMES.JOB_DETAILS, {
-                    job: {
-                      id: item.id,
-                      company: item.company,
-                      title: item.title,
-                      tags: item.tags,
-                    },
+                navigation.navigate(SCREEN_NAMES.JOB_DETAILS, {
+                job: item,
                   })
-                }
+                 }
               >
                 <LinearGradient
                   colors={['#4B3F72', '#40357E', '#312767']}
@@ -356,7 +484,7 @@ const HomeScreen = ({ navigation }) => {
                       </Text>
 
                       <View style={styles.tagRow}>
-                        {item.tags.map((tag) => (
+                        {(item.tags || []).map((tag) => (
                           <View key={tag} style={styles.tag}>
                             <Text style={styles.tagText}>{tag}</Text>
                           </View>
@@ -406,17 +534,11 @@ const HomeScreen = ({ navigation }) => {
               key={job.id}
               style={[styles.jobCard, { backgroundColor: palette.cardBg }]}
               activeOpacity={0.92}
-              onPress={() =>
-                navigation.navigate(SCREEN_NAMES.JOB_DETAILS, {
-                  job: {
-                    id: job.id,
-                    title: job.title,
-                    company: 'جهة معتمدة',
-                    location: job.location,
-                    score: job.score,
-                  },
+             onPress={() =>
+             navigation.navigate(SCREEN_NAMES.JOB_DETAILS, {
+             job,
                 })
-              }
+               }
             >
               <View style={styles.jobProgressBlock}>
                 <ProgressRing
@@ -496,6 +618,7 @@ const styles = StyleSheet.create({
     textAlign: 'right',
     writingDirection: 'rtl',
     alignSelf: 'stretch',
+    paddingHorizontal: 10
   },
 
   searchBar: {
@@ -626,6 +749,7 @@ const styles = StyleSheet.create({
     fontWeight: '800',
     writingDirection: 'rtl',
     textAlign: 'right',
+    paddingHorizontal: 10
   },
 
   sectionSubtle: {
@@ -646,22 +770,24 @@ const styles = StyleSheet.create({
   },
 
   featuredScroll: {
-    marginBottom: 20,
-    marginHorizontal: -20,
-  },
+  marginBottom: 20,
+  marginHorizontal: -20,
+  transform: [{ scaleX: -1 }],
+},
 
-  featuredScrollContent: {
-    flexDirection: 'row-reverse',
-    paddingHorizontal: 20,
-  },
+featuredScrollContent: {
+  flexDirection: 'row',
+  paddingHorizontal: 10,
+},
 
-  featuredCardTouch: {
-    width: width - 68,
-    marginLeft: 14,
-  },
-
+featuredCardTouch: {
+  width: width - 68,
+  marginLeft: 14,
+  transform: [{ scaleX: -1 }],
+},
+ 
   featuredLastCard: {
-    marginLeft: 0,
+    marginRight: 0,
   },
 
   featuredCard: {
@@ -911,6 +1037,35 @@ const styles = StyleSheet.create({
     writingDirection: 'rtl',
     textAlign: 'right',
   },
+
+  congratsCard: {
+  backgroundColor: '#4B3F72',
+  borderRadius: 22,
+  padding: 16,
+  marginBottom: 16,
+  shadowColor: '#201547',
+  shadowOffset: { width: 0, height: 6 },
+  shadowOpacity: 0.07,
+  shadowRadius: 10,
+  elevation: 3,
+},
+
+congratsTitle: {
+  color: '#FFFFFF',
+  fontSize: 20,
+  fontWeight: '900',
+  textAlign: 'right',
+  writingDirection: 'rtl',
+  marginBottom: 6,
+},
+
+congratsText: {
+  color: 'rgba(255,255,255,0.9)',
+  fontSize: 13,
+  textAlign: 'right',
+  writingDirection: 'rtl',
+  lineHeight: 22,
+},
 });
 
 export default HomeScreen;

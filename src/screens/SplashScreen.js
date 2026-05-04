@@ -37,7 +37,7 @@ const SplashScreen = ({ navigation }) => {
         
         <LinearGradient
           colors={[
-            'rgba(36,28,86,0.00)',
+            '#241c5600',
             'rgba(36,28,86,0.08)',
             'rgba(36,28,86,0.22)',
             'rgba(36,28,86,0.42)',

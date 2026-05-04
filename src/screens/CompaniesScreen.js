@@ -11,9 +11,15 @@ import {
 import { useFocusEffect } from '@react-navigation/native';
 import { SCREEN_NAMES } from '../constants/labels';
 import CompanyCard from '../components/CompanyCard';
-import { mockCompanies } from '../data/mockData';
 import { useTheme } from '../context/ThemeContext';
 import AppHeader from '../components/AppHeader';
+import { db } from '../services/firebase';
+import {
+  collection,
+  getDocs,
+  query,
+  where,
+} from 'firebase/firestore';
 
 const FILTER_TABS = [
   { key: 'jobs', label: 'وظائف' },
@@ -40,13 +46,113 @@ const CompaniesScreen = ({ navigation }) => {
   const { colors, darkMode } = useTheme();
   const [activeFilter, setActiveFilter] = useState('companies');
   const [search, setSearch] = useState('');
+  const [companies, setCompanies] = useState([]);
 
-  useFocusEffect(
-    useCallback(() => {
-      setActiveFilter('companies');
-    }, [])
-  );
+useFocusEffect(
+  useCallback(() => {
+    const load = async () => {
+      try {
+        const jobsSnapshot = await getDocs(collection(db, 'jobs'));
 
+        const usersQuery = query(
+          collection(db, 'users'),
+          where('role', '==', 'organization')
+        );
+
+        const usersSnapshot = await getDocs(usersQuery);
+
+        const jobs = jobsSnapshot.docs.map((docSnap) => ({
+          id: docSnap.id,
+          ...docSnap.data(),
+        }));
+
+        const organizations = usersSnapshot.docs.map((docSnap) => ({
+          id: docSnap.id,
+          uid: docSnap.id,
+          ...docSnap.data(),
+        }));
+
+        const uniqueCompanies = {};
+
+        jobs.forEach((job) => {
+          const org = organizations.find(
+            (u) =>
+              u.id === job.orgId ||
+              u.uid === job.orgId ||
+              u.orgName === job.orgName ||
+              u.name === job.orgName
+          );
+
+          const orgId = job.orgId || org?.id || job.orgName;
+
+          if (!uniqueCompanies[orgId]) {
+            uniqueCompanies[orgId] = {
+              id: orgId,
+
+              name: org?.orgName || org?.name || job.orgName || 'شركة غير محددة',
+
+              orgSector: org?.orgSector || job.orgSector || '',
+              sector: org?.orgSector || job.sector || '',
+
+              city: org?.city || job.city || '',
+              district: org?.district || job.district || '',
+              location:
+                org?.city ||
+                job.location?.city ||
+                job.city ||
+                job.workEnv ||
+                '',
+
+              description: org?.description || '',
+              accessibilitySupport: org?.accessibilitySupport || '',
+              workEnvironment: org?.workEnvironment || '',
+              contactEmail: org?.contactEmail || org?.email || '',
+
+              hasMowaamah: org?.hasMowaamah || '',
+              hasCertificate:
+                org?.hasMowaamah === 'نعم' || job.hasCertificate === true,
+
+              inclusivity: Number(
+                org?.inclusivityScore ||
+                  job.inclusivityScore ||
+                  job.inclusivity ||
+                  job.inclusionRate ||
+                  0
+              ),
+
+              jobsCount: 1,
+              jobs: [
+                {
+                  ...job,
+                  inclusivity: Number(
+                    org?.inclusivityScore ||
+                      job.inclusivityScore ||
+                      job.inclusivity ||
+                      job.inclusionRate ||
+                      0
+                  ),
+                },
+              ],
+            };
+          } else {
+            uniqueCompanies[orgId].jobsCount += 1;
+            uniqueCompanies[orgId].jobs.push({
+              ...job,
+              inclusivity: uniqueCompanies[orgId].inclusivity,
+            });
+          }
+        });
+
+        setCompanies(Object.values(uniqueCompanies));
+      } catch (error) {
+        console.log('LOAD COMPANIES FIREBASE ERROR:', error);
+        setCompanies([]);
+      }
+    };
+
+    load();
+  }, [])
+);
   const palette = {
     pageBg: colors.background,
     cardBg: colors.card,
@@ -60,14 +166,14 @@ const CompaniesScreen = ({ navigation }) => {
 
   const filtered = useMemo(() => {
     const q = search.trim().toLowerCase();
-    if (!q) return mockCompanies;
+    if (!q) return companies;
 
-    return mockCompanies.filter((c) => {
+    return companies.filter((c) => {
       const name = String(c.name || '').toLowerCase();
       const location = String(c.location || '').toLowerCase();
       return name.includes(q) || location.includes(q);
     });
-  }, [search]);
+  }, [search, companies]);
 
   const handleTabPress = (key) => {
     setActiveFilter(key);
@@ -171,21 +277,20 @@ const CompaniesScreen = ({ navigation }) => {
         barStyle={darkMode ? 'light-content' : 'dark-content'}
         backgroundColor={palette.pageBg}
       />
-
-      <FlatList
-        data={filtered}
-        keyExtractor={(item) => item.id}
-        renderItem={({ item }) => (
-          <CompanyCard
-            company={item}
-            onPress={() =>
-              navigation.navigate(SCREEN_NAMES.JOB_DETAILS, {
-                job: { ...item, fromCompany: true },
-              })
-            }
-            style={styles.card}
-          />
-        )}
+            <FlatList
+            data={filtered}
+            keyExtractor={(item) => item.id}
+             renderItem={({ item }) => (
+              <CompanyCard
+              company={item}
+              onPress={() =>
+              navigation.navigate(SCREEN_NAMES.COMPANY_DETAILS, {
+              company: item,
+            })
+          }
+          style={styles.card}
+        />
+       )}
         ListHeaderComponent={renderHeader}
         contentContainerStyle={styles.list}
         showsVerticalScrollIndicator={false}
@@ -329,6 +434,7 @@ const styles = StyleSheet.create({
     fontWeight: '800',
     writingDirection: 'rtl',
     textAlign: 'right',
+    paddingHorizontal: 10
   },
 
   mapLink: {

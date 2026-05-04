@@ -19,6 +19,7 @@ import SignUpJobSeekerStep2Screen from '../screens/SignUpJobSeekerStep2Screen';
 import SignUpOrganizationScreen from '../screens/SignUpOrganizationScreen';
 import SignUpOrganizationStep2Screen from '../screens/SignUpOrganizationStep2Screen';
 import ForgotPasswordScreen from '../screens/ForgotPasswordScreen';
+import NotificationsScreen from '../screens/NotificationsScreen';
 
 // Job Seeker screens
 import HomeScreen from '../screens/HomeScreen';
@@ -36,15 +37,22 @@ import SignLanguageCameraScreen from '../screens/SignLanguageCameraScreen';
 import SignLanguageCommunicationScreen from '../screens/SignLanguageCommunicationScreen';
 import ProfileScreen from '../screens/ProfileScreen';
 import LanguageSelectScreen from '../screens/LanguageSelectScreen';
+import SavedJobsScreen from '../screens/SavedJobsScreen';
+import JobSeekerInterviewsScreen from '../screens/JobSeekerInterviewsScreen';
+import JobSeekerInterviewDetailsScreen from '../screens/JobSeekerInterviewDetailsScreen';
 
 // Organization screens
 import OrgDashboardScreen from '../screens/OrgDashboardScreen';
 import ApplicantsListScreen from '../screens/ApplicantsListScreen';
 import AddJobScreen from '../screens/AddJobScreen';
+import OrgJobsScreen from '../screens/OrgJobsScreen';
 import AccessibilityIssuesScreen from '../screens/AccessibilityIssuesScreen';
 import AccessibilityResponseScreen from '../screens/AccessibilityResponseScreen';
 import OrgInterviewSchedulingScreen from '../screens/OrgInterviewSchedulingScreen';
 import InterviewDetailsScreen from '../screens/InterviewDetailsScreen';
+import PickLocationScreen from '../screens/PickLocationScreen';
+import CompanyDetailsScreen from '../screens/CompanyDetailsScreen';
+import EditCompanyProfileScreen from '../screens/EditCompanyProfileScreen';
 
 import colors from '../theme/colors';
 import { SCREEN_NAMES } from '../constants/labels';
@@ -239,6 +247,8 @@ const AppNavigator = () => (
     <Stack.Screen name={SCREEN_NAMES.EVALUATION_FORM} component={EvaluationFormScreen}/>
     <Stack.Screen name={SCREEN_NAMES.INTERVIEW_REMINDER} component={InterviewReminderScreen}/>
     <Stack.Screen name={SCREEN_NAMES.LANGUAGE_SELECT} component={LanguageSelectScreen}/>
+    <Stack.Screen name={SCREEN_NAMES.JOB_SEEKER_INTERVIEWS} component={JobSeekerInterviewsScreen}/>
+    <Stack.Screen name={SCREEN_NAMES.JOB_SEEKER_INTERVIEW_DETAILS} component={JobSeekerInterviewDetailsScreen}/>
 
     {/* Org Stack Screens */}
     <Stack.Screen name={SCREEN_NAMES.ORG_DASHBOARD} component={OrgDashboardScreen} />
@@ -248,6 +258,12 @@ const AppNavigator = () => (
     <Stack.Screen name={SCREEN_NAMES.ACCESSIBILITY_RESPONSE} component={AccessibilityResponseScreen}/>
     <Stack.Screen name={SCREEN_NAMES.ORG_INTERVIEW_SCHEDULING} component={OrgInterviewSchedulingScreen}/>
     <Stack.Screen name={SCREEN_NAMES.INTERVIEW_DETAILS} component={InterviewDetailsScreen}/>
+    <Stack.Screen name="PickLocation" component={PickLocationScreen} />
+    <Stack.Screen name={SCREEN_NAMES.COMPANY_DETAILS} component={CompanyDetailsScreen}/>
+    <Stack.Screen name={SCREEN_NAMES.EDIT_COMPANY_PROFILE} component={EditCompanyProfileScreen}/>
+    <Stack.Screen name="SavedJobs" component={SavedJobsScreen} />
+    <Stack.Screen name={SCREEN_NAMES.NOTIFICATIONS} component={NotificationsScreen} options={{ headerShown: false }}/>
+    <Stack.Screen name={SCREEN_NAMES.ORG_JOBS} component={OrgJobsScreen} options={{ headerShown: false }}/>
   </Stack.Navigator>
 );
 

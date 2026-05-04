@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useContext } from 'react';
 import {
   View,
   Text,
@@ -12,6 +12,7 @@ import {
 } from 'react-native';
 import { SCREEN_NAMES } from '../constants/labels';
 import { useTheme } from '../context/ThemeContext';
+import { AuthContext } from '../context/AuthContext';
 
 
 const BackArrowIcon = ({ color = '#1F1655' }) => (
@@ -75,8 +76,15 @@ const LogoutIcon = ({ color = '#D94B4B' }) => (
     />
   </View>
 );
+const BookmarkIcon = ({ color = '#1F1655' }) => (
+  <View style={styles.bookmarkWrap}>
+    <View style={[styles.bookmarkBody, { borderColor: color }]} />
+    <View style={[styles.bookmarkCut, { backgroundColor: color }]} />
+  </View>
+);
 
 const ProfileScreen = ({ navigation }) => {
+  const { user, logout } = useContext(AuthContext);
   const theme = useTheme();
   const darkMode = theme?.darkMode ?? false;
   const toggleTheme = theme?.toggleTheme ?? (() => {});
@@ -106,16 +114,44 @@ const ProfileScreen = ({ navigation }) => {
     logoutBg: darkMode ? '#33232A' : '#FBEDEE',
   };
 
-  const profileItems = [
-    { key: 'data', label: 'بياناتي', icon: ProfileIcon },
-    { key: 'language', label: 'اللغة', icon: GlobeIcon },
-    { key: 'about', label: 'من نحن', icon: InfoIcon },
-    { key: 'terms', label: 'الشروط', icon: InfoIcon },
-    { key: 'policies', label: 'السياسات', icon: LockIcon },
-    { key: 'values', label: 'قيم التطبيق', icon: StarIcon },
-  ];
+const isOrganization = user?.role === 'organization';
+const isJobSeeker = user?.role === 'jobSeeker';
+
+const profileItems = [
+  { key: 'data', label: 'بياناتي', icon: ProfileIcon },
+
+  ...(isJobSeeker
+    ? [
+        { key: 'savedJobs', label: 'الوظائف المحفوظة', icon: BookmarkIcon },
+        { key: 'interviews', label: 'المقابلات', icon: BookmarkIcon },
+      ]
+    : []),
+
+  ...(isOrganization
+    ? [{ key: 'editCompany', label: 'تعديل بيانات الشركة', icon: ProfileIcon }]
+    : []),
+
+  { key: 'language', label: 'اللغة', icon: GlobeIcon },
+  { key: 'about', label: 'من نحن', icon: InfoIcon },
+  { key: 'terms', label: 'الشروط', icon: InfoIcon },
+  { key: 'policies', label: 'السياسات', icon: LockIcon },
+  { key: 'values', label: 'قيم التطبيق', icon: StarIcon },
+];
 
   const handleItem = (key) => {
+
+    if (key === 'savedJobs') {
+     navigation.navigate('SavedJobs');
+     return;
+    }
+    if (key === 'interviews') {
+     navigation.navigate(SCREEN_NAMES.JOB_SEEKER_INTERVIEWS);
+     return;
+    }
+    if (key === 'editCompany') {
+      navigation.navigate(SCREEN_NAMES.EDIT_COMPANY_PROFILE);
+     return;
+    }
     if (key === 'data') {
       navigation.navigate(SCREEN_NAMES.MY_DATA);
       return;
@@ -147,19 +183,22 @@ const ProfileScreen = ({ navigation }) => {
   };
 
   const handleLogout = () => {
-    Alert.alert(
-      'تسجيل الخروج',
-      'هل أنت متأكد من رغبتك في تسجيل الخروج؟',
-      [
-        { text: 'إلغاء', style: 'cancel' },
-        {
-          text: 'تسجيل الخروج',
-          style: 'destructive',
-          onPress: () => navigation.replace(SCREEN_NAMES.LOGIN),
+  Alert.alert(
+    'تسجيل الخروج',
+    'هل أنت متأكد من رغبتك في تسجيل الخروج؟',
+    [
+      { text: 'إلغاء', style: 'cancel' },
+      {
+        text: 'تسجيل الخروج',
+        style: 'destructive',
+        onPress: async () => {
+          await logout();
+          navigation.replace(SCREEN_NAMES.LOGIN);
         },
-      ]
-    );
-  };
+      },
+    ]
+  );
+};
 
   return (
     <View style={[styles.container, { backgroundColor: palette.pageBg }]}>
@@ -591,4 +630,28 @@ const styles = StyleSheet.create({
     borderRightWidth: 1.8,
     transform: [{ rotate: '45deg' }],
   },
+
+  bookmarkWrap: {
+  width: 16,
+  height: 18,
+  position: 'relative',
+},
+
+bookmarkBody: {
+  width: 14,
+  height: 18,
+  borderWidth: 1.8,
+  borderTopLeftRadius: 3,
+  borderTopRightRadius: 3,
+  borderBottomWidth: 0,
+},
+
+bookmarkCut: {
+  position: 'absolute',
+  bottom: 0,
+  left: 3,
+  width: 8,
+  height: 8,
+  transform: [{ rotate: '45deg' }],
+},
 });

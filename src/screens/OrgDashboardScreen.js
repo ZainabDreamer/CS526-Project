@@ -1,5 +1,7 @@
 import { useFocusEffect } from '@react-navigation/native';
-import React, { useMemo, useState, useCallback } from 'react';
+import { showOnceLocalNotification } from '../services/notificationService';
+import AsyncStorage from '@react-native-async-storage/async-storage';
+import React, { useMemo, useState, useCallback, useContext } from 'react';
 import {
   View,
   Text,
@@ -15,12 +17,20 @@ import Svg, { Polyline, Circle, Line, Text as SvgText } from 'react-native-svg';
 import ScoreIndicator from '../components/ScoreIndicator';
 import { SCREEN_NAMES, MOCK_ORG_USER } from '../constants/labels';
 import { useTheme } from '../context/ThemeContext';
+import { AuthContext } from '../context/AuthContext';
+import { db } from '../services/firebase';
+import {
+  collection,
+  getDocs,
+  query,
+  where,
+} from 'firebase/firestore';
 
 const ORG_TABS = [
   { key: 'inclusivity', label: 'الشمولية' },
   { key: 'evaluations', label: 'التقييمات' },
   { key: 'interviews', label: 'المقابلات' },
-  { key: 'addJob', label: 'إضافة فرصة' },
+  { key: 'orgJobs', label: 'فُرصي' },
 ];
 
 const BellIcon = ({ color = '#1F1655' }) => (
@@ -170,34 +180,143 @@ const InclusivityLineChart = ({
 
 const OrgDashboardScreen = ({ navigation }) => {
   const { colors, darkMode } = useTheme();
+  const { user } = useContext(AuthContext);
   const [activeTab, setActiveTab] = useState('inclusivity');
   const [period, setPeriod] = useState('month');
   const [search, setSearch] = useState('');
+  const [dashboardStats, setDashboardStats] = useState({
+  jobsCount: 0,
+  applicationsCount: 0,
+  evaluationsCount: 0,
+  averageRating: 0,
+});
 
   useFocusEffect(
   useCallback(() => {
-    setActiveTab('inclusivity');
-  }, [])
-  );
+    const loadDashboardData = async () => {
+      try {
+        setActiveTab('inclusivity');
 
+        const currentOrgId = user?.uid || user?.id;
+        const currentOrgName = user?.orgName || user?.name;
+
+        if (!currentOrgId) {
+          setDashboardStats({
+            jobsCount: 0,
+            applicationsCount: 0,
+            evaluationsCount: 0,
+            averageRating: 0,
+          });
+          return;
+        }
+
+        const jobsSnapshot = await getDocs(
+          query(
+            collection(db, 'jobs'),
+            where('orgId', '==', currentOrgId)
+          )
+        );
+
+        const applicationsSnapshot = await getDocs(
+          query(
+            collection(db, 'applications'),
+            where('orgId', '==', currentOrgId)
+          )
+        );
+
+        const evaluationsSnapshot = await getDocs(
+          query(
+            collection(db, 'evaluations'),
+            where('orgId', '==', currentOrgId)
+          )
+        );
+
+        const jobs = jobsSnapshot.docs.map((docSnap) => ({
+          id: docSnap.id,
+          ...docSnap.data(),
+        }));
+
+        const applications = applicationsSnapshot.docs.map((docSnap) => ({
+          id: docSnap.id,
+          ...docSnap.data(),
+        }));
+
+        const evaluations = evaluationsSnapshot.docs.map((docSnap) => ({
+          id: docSnap.id,
+          ...docSnap.data(),
+        }));
+
+        const storageKey = `seenEvaluations_${currentOrgId}`;
+const stored = await AsyncStorage.getItem(storageKey);
+const seenEvaluations = stored ? JSON.parse(stored) : [];
+
+const updatedSeen = [...seenEvaluations];
+
+for (const evaluation of evaluations) {
+  if (!seenEvaluations.includes(evaluation.id)) {
+    await showOnceLocalNotification(
+  `newEvaluation_${currentOrgId}_${evaluation.id}`,
+  'تقييم جديد',
+  'وصل تقييم جديد من باحث عن عمل ويحتاج إلى مراجعة.',
+  { screen: SCREEN_NAMES.ACCESSIBILITY_ISSUES },
+  currentOrgId
+);
+
+    updatedSeen.push(evaluation.id);
+  }
+}
+
+await AsyncStorage.setItem(storageKey, JSON.stringify(updatedSeen));
+
+        const inclusivityScore = Number(user?.inclusivityScore || 0);
+
+        setDashboardStats({
+          jobsCount: jobs.length,
+          applicationsCount: applications.length,
+          evaluationsCount: evaluations.filter((e) => !e.orgReply?.text).length,
+          averageRating: inclusivityScore,
+         });
+        setDashboardStats({
+          jobsCount: jobs.length,
+          applicationsCount: applications.length,
+          evaluationsCount: evaluations.filter((e) => !e.orgReply?.text).length,
+          averageRating,
+        });
+      } catch (error) {
+        console.log('LOAD ORG DASHBOARD ERROR:', error);
+
+        setDashboardStats({
+          jobsCount: 0,
+          applicationsCount: 0,
+          evaluationsCount: 0,
+          averageRating: 0,
+        });
+      }
+    };
+
+    loadDashboardData();
+  }, [user])
+);
   const chartData = useMemo(() => {
-    return period === 'month'
-      ? [
-          { label: 'الأسبوع 1', value: 68 },
-          { label: 'الأسبوع 2', value: 72 },
-          { label: 'الأسبوع 3', value: 77 },
-          { label: 'الأسبوع 4', value: 86 },
-        ]
-      : [
-          { label: 'يناير', value: 52 },
-          { label: 'مارس', value: 60 },
-          { label: 'يونيو', value: 69 },
-          { label: 'سبتمبر', value: 78 },
-          { label: 'ديسمبر', value: 86 },
-        ];
-  }, [period]);
+  const score = Number(dashboardStats.averageRating || user?.inclusivityScore || 0);
 
-  const currentScore = chartData[chartData.length - 1]?.value || 86;
+  return period === 'month'
+    ? [
+        { label: 'الأسبوع 1', value: Math.max(score - 12, 0) },
+        { label: 'الأسبوع 2', value: Math.max(score - 8, 0) },
+        { label: 'الأسبوع 3', value: Math.max(score - 4, 0) },
+        { label: 'الأسبوع 4', value: score },
+      ]
+    : [
+        { label: 'يناير', value: Math.max(score - 25, 0) },
+        { label: 'مارس', value: Math.max(score - 18, 0) },
+        { label: 'يونيو', value: Math.max(score - 12, 0) },
+        { label: 'سبتمبر', value: Math.max(score - 6, 0) },
+        { label: 'ديسمبر', value: score },
+      ];
+}, [period, dashboardStats.averageRating, user]);
+
+  const currentScore = Number(dashboardStats.averageRating) || 0;
   const previousScore = chartData[chartData.length - 2]?.value || 81;
   const improvement = currentScore - previousScore;
 
@@ -239,10 +358,10 @@ const OrgDashboardScreen = ({ navigation }) => {
       return;
     }
 
-    if (key === 'addJob') {
-      navigation.navigate(SCREEN_NAMES.ADD_JOB);
-      return;
-    }
+    if (key === 'orgJobs') {
+  navigation.navigate(SCREEN_NAMES.ORG_JOBS);
+  return;
+}
   };
 
   return (
@@ -273,17 +392,18 @@ const OrgDashboardScreen = ({ navigation }) => {
             resizeMode="contain"
           />
 
-          <TouchableOpacity
-            style={[styles.iconButton, { backgroundColor: palette.cardBg }]}
-            activeOpacity={0.85}
-          >
-            <BellIcon color={palette.iconColor} />
-          </TouchableOpacity>
+         <TouchableOpacity
+  
+  onPress={() => navigation.navigate(SCREEN_NAMES.NOTIFICATIONS)}
+  activeOpacity={0.85}
+>
+  <BellIcon color={palette.iconColor} />
+</TouchableOpacity>
         </View>
 
         <View style={styles.welcomeBlock}>
           <Text style={[styles.welcome, { color: palette.text }]}>
-            مرحبًا، {MOCK_ORG_USER.name}
+           مرحبًا، {user?.orgName || user?.name || MOCK_ORG_USER.name}
           </Text>
         </View>
 
@@ -446,9 +566,9 @@ const OrgDashboardScreen = ({ navigation }) => {
               style={[styles.statBox, { backgroundColor: palette.statsBg }]}
               onPress={() => navigation.navigate(SCREEN_NAMES.ACCESSIBILITY_ISSUES)}
             >
-              <Text style={[styles.statValue, { color: palette.text }]}>4.7</Text>
+              <Text style={[styles.statValue, { color: palette.text }]}>{dashboardStats.averageRating}</Text>
               <Text style={[styles.statLabel, { color: palette.softText }]}>
-                رضا الموظفين
+                نسبة الشمولية 
               </Text>
               <Text style={[styles.statHint, { color: palette.success }]}>
                 اضغط لعرض التفاصيل
@@ -460,7 +580,7 @@ const OrgDashboardScreen = ({ navigation }) => {
               style={[styles.statBox, { backgroundColor: palette.statsBg }]}
               onPress={() => navigation.navigate(SCREEN_NAMES.ACCESSIBILITY_ISSUES)}
             >
-              <Text style={[styles.statValue, { color: palette.text }]}>18</Text>
+              <Text style={[styles.statValue, { color: palette.text }]}>{dashboardStats.evaluationsCount}</Text>
               <Text style={[styles.statLabel, { color: palette.softText }]}>
                 التقييمات الجديدة
               </Text>

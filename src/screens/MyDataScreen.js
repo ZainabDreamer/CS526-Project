@@ -1,4 +1,4 @@
-import React, { useMemo, useState } from 'react';
+import React, { useContext, useMemo, useState } from 'react';
 import {
   View,
   Text,
@@ -8,8 +8,14 @@ import {
   TouchableOpacity,
   Image,
   TextInput,
+  Alert,
 } from 'react-native';
+import * as ImagePicker from 'expo-image-picker';
 import { useTheme } from '../context/ThemeContext';
+import { AuthContext } from '../context/AuthContext';
+import { db, storage } from '../services/firebase';
+import { doc, updateDoc, serverTimestamp } from 'firebase/firestore';
+import { ref, uploadBytes, getDownloadURL } from 'firebase/storage';
 
 const BackArrowIcon = ({ color = '#1F1655' }) => (
   <Text style={[styles.backArrowIcon, { color }]}>{'‹'}</Text>
@@ -21,17 +27,16 @@ const EditIcon = ({ color = '#4B3F72' }) => (
     <View
       style={[
         styles.editNib,
-        {
-          borderTopColor: color,
-          borderRightColor: color,
-        },
+        { borderTopColor: color, borderRightColor: color },
       ]}
     />
   </View>
 );
 
 const MyDataScreen = ({ navigation }) => {
+  const { user } = useContext(AuthContext);
   const theme = useTheme();
+
   const darkMode = theme?.darkMode ?? false;
   const colors = theme?.colors ?? {
     background: '#F3F1FA',
@@ -47,7 +52,6 @@ const MyDataScreen = ({ navigation }) => {
     text: colors.text,
     subText: colors.subText,
     primary: colors.primary,
-    border: darkMode ? '#312D45' : '#F1EFF8',
     inputBg: darkMode ? '#2A273A' : '#FAF9FD',
     inputBorder: darkMode ? '#3A3650' : '#ECE8F5',
     headerBtnBg: colors.card,
@@ -55,40 +59,140 @@ const MyDataScreen = ({ navigation }) => {
     label: darkMode ? '#C6C0D8' : '#7B7696',
   };
 
-  /*
-    مهيأ للمستقبل:
-    لاحقًا بدل هذا الـ state الثابت
-    تقدرين تجيبين البيانات من API أو قاعدة البيانات
-    وتحطينها هنا عن طريق:
-    - useEffect
-    - fetch / axios
-    - React Query
-    - Firebase
-  */
-  const [userData, setUserData] = useState({
-    fullName: 'شهد الحساوي',
-    email: 'shahad@example.com',
-    phone: '05XXXXXXXX',
-    city: 'الدمام',
-    disabilityType: 'إعاقة حركية',
-    preferredWorkType: 'حضوري / عن بعد',
-    bio: 'مهتمة بالفرص الوظيفية الداعمة للشمولية وتطوير المهارات المهنية.',
-  });
+  const initialData = {
+    fullName:
+      user?.name ||
+      user?.fullName ||
+      user?.representativeName ||
+      user?.orgName ||
+      'مستخدم شمولية',
+    email: user?.email || user?.username || 'غير محدد',
+    phone: user?.phone || 'غير محدد',
+    city: user?.city || 'غير محدد',
+    disabilityType:
+      user?.disabilityType || user?.supports?.join('، ') || 'غير محدد',
+    preferredWorkType:
+      user?.interview || user?.preferredWorkType || 'غير محدد',
+    bio: user?.experience || user?.orgSector || 'لا توجد نبذة مسجلة حاليًا.',
+    imageUri: user?.imageUri || null,
+  };
+
+  const [isEditing, setIsEditing] = useState(false);
+  const [userData, setUserData] = useState(initialData);
+  const [isSaving, setIsSaving] = useState(false);
+
+  const updateField = (key, value) => {
+    setUserData((prev) => ({ ...prev, [key]: value }));
+  };
+
+  const uploadImageToFirebase = async (uri, uid) => {
+    const response = await fetch(uri);
+    const blob = await response.blob();
+
+    const imageRef = ref(storage, `profileImages/${uid}.jpg`);
+
+    await uploadBytes(imageRef, blob);
+
+    const downloadURL = await getDownloadURL(imageRef);
+
+    return downloadURL;
+  };
+
+  const pickImage = async () => {
+    try {
+      const permission =
+        await ImagePicker.requestMediaLibraryPermissionsAsync();
+
+      if (!permission.granted) {
+        Alert.alert('الصلاحية مطلوبة', 'يرجى السماح بالوصول للصور.');
+        return;
+      }
+
+      const result = await ImagePicker.launchImageLibraryAsync({
+        mediaTypes: ImagePicker.MediaTypeOptions.Images,
+        allowsEditing: true,
+        aspect: [1, 1],
+        quality: 0.7,
+      });
+
+      if (!result.canceled && result.assets?.length > 0) {
+        const uri = result.assets[0].uri;
+        updateField('imageUri', uri);
+      }
+    } catch (error) {
+      console.log('PICK IMAGE ERROR:', error);
+      Alert.alert('خطأ', 'تعذر اختيار الصورة.');
+    }
+  };
+
+  const saveProfile = async () => {
+    const uid = user?.uid || user?.id;
+
+    if (!uid) {
+      Alert.alert('خطأ', 'تعذر تحديد حساب المستخدم.');
+      return;
+    }
+
+    try {
+      setIsSaving(true);
+
+      let finalImageUri = userData.imageUri || null;
+
+      if (finalImageUri && finalImageUri.startsWith('file://')) {
+        finalImageUri = await uploadImageToFirebase(finalImageUri, uid);
+      }
+
+      const payload = {
+        name: userData.fullName.trim(),
+        fullName: userData.fullName.trim(),
+        email: userData.email.trim().toLowerCase(),
+        phone: userData.phone.trim(),
+        city: userData.city.trim(),
+        disabilityType: userData.disabilityType.trim(),
+        preferredWorkType: userData.preferredWorkType.trim(),
+        bio: userData.bio.trim(),
+        imageUri: finalImageUri,
+        updatedAt: serverTimestamp(),
+      };
+
+      await updateDoc(doc(db, 'users', uid), payload);
+
+      if (user?.role === 'organization') {
+        await updateDoc(doc(db, 'organizations', uid), {
+          name: userData.fullName.trim(),
+          orgName: userData.fullName.trim(),
+          phone: userData.phone.trim(),
+          city: userData.city.trim(),
+          imageUri: finalImageUri,
+          updatedAt: serverTimestamp(),
+        });
+      }
+
+      setUserData((prev) => ({
+        ...prev,
+        imageUri: finalImageUri,
+      }));
+
+      setIsEditing(false);
+      Alert.alert('تم الحفظ', 'تم تحديث بياناتك بنجاح.');
+    } catch (error) {
+      console.log('UPDATE MY DATA ERROR:', error);
+      Alert.alert('خطأ', 'تعذر تحديث بياناتك.');
+    } finally {
+      setIsSaving(false);
+    }
+  };
 
   const fields = useMemo(
     () => [
-      { key: 'fullName', label: 'الاسم الكامل', value: userData.fullName },
-      { key: 'email', label: 'البريد الإلكتروني', value: userData.email },
-      { key: 'phone', label: 'رقم الجوال', value: userData.phone },
-      { key: 'city', label: 'المدينة', value: userData.city },
-      { key: 'disabilityType', label: 'نوع الإعاقة', value: userData.disabilityType },
-      {
-        key: 'preferredWorkType',
-        label: 'نوع العمل المفضل',
-        value: userData.preferredWorkType,
-      },
+      { key: 'fullName', label: 'الاسم الكامل' },
+      { key: 'email', label: 'البريد الإلكتروني' },
+      { key: 'phone', label: 'رقم الجوال' },
+      { key: 'city', label: 'المدينة' },
+      { key: 'disabilityType', label: 'نوع الإعاقة / الدعم' },
+      { key: 'preferredWorkType', label: 'نوع العمل / المقابلة المفضل' },
     ],
-    [userData]
+    []
   );
 
   return (
@@ -121,9 +225,7 @@ const MyDataScreen = ({ navigation }) => {
         showsVerticalScrollIndicator={false}
       >
         <View style={styles.sectionHeader}>
-          <Text style={[styles.sectionHint, { color: palette.subText }]}>
-             
-          </Text>
+          <View />
           <Text style={[styles.sectionTitle, { color: palette.text }]}>
             بياناتي
           </Text>
@@ -131,27 +233,50 @@ const MyDataScreen = ({ navigation }) => {
 
         <View style={[styles.card, { backgroundColor: palette.cardBg }]}>
           <View style={styles.cardTopRow}>
-  <View style={styles.avatarBlock}>
-    <Text style={[styles.avatarName, { color: palette.text }]}>
-      {userData.fullName}
-    </Text>
-    <View style={[styles.avatarCircle, { backgroundColor: palette.inputBg }]}>
-      <Text style={[styles.avatarLetter, { color: palette.primary }]}>
-        {userData.fullName?.charAt(0) || 'ش'}
-      </Text>
-    </View>
-  </View>
+            <View style={styles.avatarBlock}>
+              <TouchableOpacity
+                style={[
+                  styles.avatarCircle,
+                  { backgroundColor: palette.inputBg },
+                ]}
+                onPress={pickImage}
+                activeOpacity={0.85}
+              >
+                {userData.imageUri ? (
+                  <Image
+                    source={{ uri: userData.imageUri }}
+                    style={styles.avatarImage}
+                  />
+                ) : (
+                  <Text style={[styles.avatarLetter, { color: palette.primary }]}>
+                    {userData.fullName?.charAt(0) || 'ش'}
+                  </Text>
+                )}
+              </TouchableOpacity>
 
-  <TouchableOpacity
-    style={[styles.editButton, { backgroundColor: palette.inputBg }]}
-    activeOpacity={0.85}
-  >
-    <EditIcon color={palette.primary} />
-    <Text style={[styles.editButtonText, { color: palette.primary }]}>
-      تعديل
-    </Text>
-  </TouchableOpacity>
-</View>
+              <View style={styles.avatarTextWrap}>
+                <Text style={[styles.avatarName, { color: palette.text }]}>
+                  {userData.fullName}
+                </Text>
+                <Text style={[styles.avatarHint, { color: palette.subText }]}>
+                  اضغطي على الصورة لتغييرها
+                </Text>
+              </View>
+            </View>
+
+            <TouchableOpacity
+              style={[styles.editButton, { backgroundColor: palette.inputBg }]}
+              onPress={isEditing ? saveProfile : () => setIsEditing(true)}
+              activeOpacity={0.85}
+              disabled={isSaving}
+            >
+              <EditIcon color={palette.primary} />
+              <Text style={[styles.editButtonText, { color: palette.primary }]}>
+                {isSaving ? 'جارٍ الحفظ...' : isEditing ? 'حفظ' : 'تعديل'}
+              </Text>
+            </TouchableOpacity>
+          </View>
+
           {fields.map((field) => (
             <View key={field.key} style={styles.fieldBlock}>
               <Text style={[styles.fieldLabel, { color: palette.label }]}>
@@ -168,8 +293,9 @@ const MyDataScreen = ({ navigation }) => {
                 ]}
               >
                 <TextInput
-                  value={field.value}
-                  editable={false}
+                  value={String(userData[field.key] || '')}
+                  onChangeText={(v) => updateField(field.key, v)}
+                  editable={isEditing}
                   style={[styles.inputText, { color: palette.text }]}
                   placeholderTextColor={palette.placeholder}
                   textAlign="right"
@@ -193,8 +319,9 @@ const MyDataScreen = ({ navigation }) => {
               ]}
             >
               <TextInput
-                value={userData.bio}
-                editable={false}
+                value={String(userData.bio || '')}
+                onChangeText={(v) => updateField('bio', v)}
+                editable={isEditing}
                 multiline
                 style={[styles.textAreaText, { color: palette.text }]}
                 placeholderTextColor={palette.placeholder}
@@ -213,9 +340,7 @@ const MyDataScreen = ({ navigation }) => {
 export default MyDataScreen;
 
 const styles = StyleSheet.create({
-  container: {
-    flex: 1,
-  },
+  container: { flex: 1 },
 
   headerRow: {
     flexDirection: 'row',
@@ -268,13 +393,6 @@ const styles = StyleSheet.create({
     paddingHorizontal: 10,
   },
 
-  sectionHint: {
-    fontSize: 13,
-    fontWeight: '700',
-    textAlign: 'right',
-    writingDirection: 'rtl',
-  },
-
   card: {
     borderRadius: 24,
     paddingHorizontal: 18,
@@ -312,15 +430,32 @@ const styles = StyleSheet.create({
   avatarBlock: {
     flexDirection: 'row-reverse',
     alignItems: 'center',
+    flex: 1,
   },
 
   avatarCircle: {
-    width: 52,
-    height: 52,
-    borderRadius: 26,
+    width: 58,
+    height: 58,
+    borderRadius: 29,
     justifyContent: 'center',
     alignItems: 'center',
     marginLeft: 10,
+    overflow: 'hidden',
+  },
+
+  avatarImage: {
+    width: '100%',
+    height: '100%',
+  },
+
+  avatarLetter: {
+    fontSize: 22,
+    fontWeight: '800',
+  },
+
+  avatarTextWrap: {
+    flex: 1,
+    alignItems: 'flex-end',
   },
 
   avatarName: {
@@ -328,12 +463,19 @@ const styles = StyleSheet.create({
     fontWeight: '800',
     textAlign: 'right',
     writingDirection: 'rtl',
+    flexShrink: 1,
+  },
+
+  avatarHint: {
+    fontSize: 11,
+    marginTop: 4,
+    textAlign: 'right',
+    writingDirection: 'rtl',
   },
 
   fieldBlock: {
     marginBottom: 14,
   },
-
 
   fieldLabel: {
     fontSize: 13,
@@ -378,5 +520,32 @@ const styles = StyleSheet.create({
     fontWeight: '700',
     lineHeight: 26,
     includeFontPadding: false,
+  },
+
+  editIconWrap: {
+    width: 15,
+    height: 15,
+    position: 'relative',
+  },
+
+  editLine: {
+    width: 13,
+    height: 3,
+    borderRadius: 2,
+    transform: [{ rotate: '-35deg' }],
+    position: 'absolute',
+    top: 6,
+    left: 1,
+  },
+
+  editNib: {
+    width: 6,
+    height: 6,
+    borderTopWidth: 2,
+    borderRightWidth: 2,
+    transform: [{ rotate: '-35deg' }],
+    position: 'absolute',
+    right: 0,
+    top: 3,
   },
 });

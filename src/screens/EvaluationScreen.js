@@ -1,4 +1,6 @@
-import React, { useMemo, useState } from 'react';
+import React, { useMemo, useState, useCallback, useContext } from 'react';
+import { showOnceLocalNotification } from '../services/notificationService';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 import {
   View,
   Text,
@@ -9,10 +11,18 @@ import {
   StatusBar,
 } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
-import { mockCompanies } from '../data/mockData';
+import { useFocusEffect } from '@react-navigation/native';
+import { AuthContext } from '../context/AuthContext';
 import { SCREEN_NAMES } from '../constants/labels';
 import { useTheme } from '../context/ThemeContext';
 import AppHeader from '../components/AppHeader';
+import { db } from '../services/firebase';
+import {
+  collection,
+  query,
+  where,
+  getDocs,
+} from 'firebase/firestore'; 
 
 const SearchIcon = ({ color = '#8F8B9E' }) => (
   <View style={styles.searchIconWrap}>
@@ -48,6 +58,9 @@ const EvaluationScreen = ({ navigation }) => {
 
   const [activeTab, setActiveTab] = useState('current');
   const [search, setSearch] = useState('');
+  const { user } = useContext(AuthContext);
+  const [companies, setCompanies] = useState([]);
+  const [evaluations, setEvaluations] = useState([]);
 
   const palette = {
     pageBg: colors.background,
@@ -68,16 +81,120 @@ const EvaluationScreen = ({ navigation }) => {
     bannerAccent: '#56B692',
   };
 
-  const currentCompanies =
-    activeTab === 'current'
-      ? mockCompanies.slice(0, 2)
-      : mockCompanies.slice(2, 4);
+
+  useFocusEffect(
+  useCallback(() => {
+    const loadData = async () => {
+      try {
+        const userId = user?.uid || user?.id;
+
+        const jobsSnapshot = await getDocs(collection(db, 'jobs'));
+        const evaluationsSnapshot = await getDocs(
+          query(
+            collection(db, 'evaluations'),
+            where('userId', '==', userId)
+          )
+        );
+
+        const jobs = jobsSnapshot.docs.map((docSnap) => ({
+          id: docSnap.id,
+          ...docSnap.data(),
+        }));
+
+        const evaluations = evaluationsSnapshot.docs.map((docSnap) => ({
+          id: docSnap.id,
+          ...docSnap.data(),
+        }));
+
+// 🔔 جلب الردود التي تم عرضها سابقًا
+const storageKey = `seenReplies_${userId}`;
+const stored = await AsyncStorage.getItem(storageKey);
+const seenReplies = stored ? JSON.parse(stored) : [];
+
+const updatedSeen = [...seenReplies];
+
+// 🔔 إرسال إشعار فقط للجديد
+for (const evaluation of evaluations) {
+  if (evaluation.orgReply?.text && !seenReplies.includes(evaluation.id)) {
+    await showOnceLocalNotification(
+  `orgReply_${userId}_${evaluation.id}`,
+  'وصل رد من الجهة',
+  `ردت ${evaluation.orgName || evaluation.company?.name || 'الجهة'} على تقييمك.`,
+  { screen: SCREEN_NAMES.EVALUATION },
+  userId
+);
+
+    updatedSeen.push(evaluation.id);
+  }
+}
+
+// 🔔 تحديث التخزين
+await AsyncStorage.setItem(storageKey, JSON.stringify(updatedSeen));
+
+        const uniqueCompanies = {};
+
+        jobs.forEach((job) => {
+          const orgId = job.orgId || job.orgName;
+
+          if (!uniqueCompanies[orgId]) {
+            uniqueCompanies[orgId] = {
+              id: orgId,
+              orgId,
+              name: job.orgName || 'شركة غير محددة',
+              orgName: job.orgName || 'شركة غير محددة',
+              city: job.location?.city || job.city || job.workEnv || 'غير محدد',
+              jobs: [job],
+            };
+          } else {
+            uniqueCompanies[orgId].jobs.push(job);
+          }
+        });
+
+       setCompanies(Object.values(uniqueCompanies));
+       setEvaluations(evaluations);
+
+      } catch (error) {
+        console.log('LOAD EVALUATION COMPANIES ERROR:', error);
+        setCompanies([]);
+        setEvaluations([]);
+      }
+    };
+
+    loadData();
+  }, [user])
+);
 
   const filteredCompanies = useMemo(() => {
-    return currentCompanies.filter((company) =>
-      !search.trim() ? true : company.name.includes(search.trim())
-    );
-  }, [currentCompanies, search]);
+  const evaluatedIds = evaluations.map((e) => e.company?.id || e.orgId);
+
+  const base =
+    activeTab === 'current'
+      ? companies
+          .filter((company) => !evaluatedIds.includes(company.id))
+          .map((company) => ({ ...company, evaluation: null }))
+      : companies
+          .filter((company) => evaluatedIds.includes(company.id))
+          .map((company) => {
+            const evaluation = evaluations.find(
+              (e) => (e.company?.id || e.orgId) === company.id
+            );
+
+            return {
+              ...company,
+              evaluation,
+            };
+          });
+
+  if (!search.trim()) return base;
+
+  const q = search.trim().toLowerCase();
+
+  return base.filter((company) => {
+    const name = String(company.name || '').toLowerCase();
+    const city = String(company.city || '').toLowerCase();
+    return name.includes(q) || city.includes(q);
+  });
+}, [activeTab, search, companies, evaluations]);
 
   return (
     <View style={[styles.container, { backgroundColor: palette.pageBg }]}>
@@ -199,62 +316,68 @@ const EvaluationScreen = ({ navigation }) => {
         </View>
 
         {filteredCompanies.length > 0 ? (
-          filteredCompanies.map((company) => (
-            <View
-              key={company.id}
-              style={[styles.companyCard, { backgroundColor: palette.cardBg }]}
-            >
-              <View style={styles.cardTop}>
-                <View style={styles.companyInfo}>
-                  <Text style={[styles.companyName, { color: palette.text }]}>
-                    {company.name}
-                  </Text>
+  filteredCompanies.map((company) => (
+    <View
+      key={company.id}
+      style={[styles.companyCard, { backgroundColor: palette.cardBg }]}
+    >
+      <View style={styles.companyInfo}>
+        <Text style={[styles.companyName, { color: palette.text }]}>
+          {company.name}
+        </Text>
 
-                  <View style={styles.locationRow}>
-                    <LocationIcon />
-                    <Text style={[styles.companyCity, { color: palette.subText }]}>
-                      {company.city}
-                    </Text>
-                  </View>
+        <View style={styles.locationRow}>
+          <LocationIcon />
+          <Text style={[styles.companyCity, { color: palette.subText }]}>
+            {company.city}
+          </Text>
+        </View>
 
-                  <Text style={[styles.moreDetails, { color: palette.mutedText }]}>
-                    للمزيد من التفاصيل
-                  </Text>
-                </View>
-
-                <TouchableOpacity
-                  style={[styles.addBtn, { backgroundColor: palette.primary }]}
-                  onPress={() =>
-                    navigation.navigate(SCREEN_NAMES.EVALUATION_FORM, { company })
-                  }
-                  activeOpacity={0.88}
-                >
-                  <Text style={styles.addBtnText}>
-                    {activeTab === 'current' ? 'أضف تقييمك' : 'الوصول إلى تقييمك'}
-                  </Text>
-                </TouchableOpacity>
-              </View>
-            </View>
-          ))
-        ) : (
-          <View
-            style={[
-              styles.emptyCard,
-              {
-                backgroundColor: palette.emptyBg,
-                borderColor: palette.emptyBorder,
-              },
-            ]}
-          >
-            <Text style={[styles.emptyTitle, { color: palette.text }]}>
-              لا توجد نتائج مطابقة
-            </Text>
-            <Text style={[styles.emptySubText, { color: palette.subText }]}>
-              جرّب البحث باسم جهة أخرى أو غيّر نوع القائمة من الحالي إلى السابق.
+        {activeTab === 'previous' && company.evaluation?.orgReply?.text && (
+          <View style={styles.replyBox}>
+            <Text style={styles.replyTitle}>رد الجهة</Text>
+            <Text style={styles.replyText}>
+              {company.evaluation.orgReply.text}
             </Text>
           </View>
         )}
+      </View>
 
+      <TouchableOpacity
+        style={[styles.addBtn, { backgroundColor: palette.primary }]}
+        onPress={() =>
+          navigation.navigate(SCREEN_NAMES.EVALUATION_FORM, {
+            company,
+            mode: activeTab,
+            evaluation: company.evaluation,
+          })
+        }
+        activeOpacity={0.88}
+      >
+        <Text style={styles.addBtnText}>
+          {activeTab === 'current' ? 'أضف تقييمك' : 'الوصول إلى تقييمك'}
+        </Text>
+      </TouchableOpacity>
+    </View>
+  ))
+) : (
+  <View
+    style={[
+      styles.emptyCard,
+      {
+        backgroundColor: palette.emptyBg,
+        borderColor: palette.emptyBorder,
+      },
+    ]}
+  >
+    <Text style={[styles.emptyTitle, { color: palette.text }]}>
+      لا توجد نتائج مطابقة
+    </Text>
+    <Text style={[styles.emptySubText, { color: palette.subText }]}>
+      جرّب البحث باسم جهة أخرى أو غيّر نوع القائمة من الحالي إلى السابق.
+    </Text>
+  </View>
+)}
         <View style={{ height: 30 }} />
       </ScrollView>
     </View>
@@ -477,9 +600,8 @@ const styles = StyleSheet.create({
   },
 
   companyInfo: {
-    alignItems: 'flex-end',
-    flex: 1,
-    marginLeft: 14,
+   alignItems: 'flex-end',
+   width: '100%',
   },
 
   companyName: {
@@ -534,12 +656,13 @@ const styles = StyleSheet.create({
   },
 
   addBtn: {
-    borderRadius: 14,
-    paddingVertical: 12,
-    paddingHorizontal: 16,
-    minWidth: 114,
-    alignItems: 'center',
-  },
+  marginTop: 14,
+  borderRadius: 14,
+  paddingVertical: 12,
+  paddingHorizontal: 16,
+  width: '100%',
+  alignItems: 'center',
+},
 
   addBtnText: {
     color: '#FFFFFF',
@@ -569,6 +692,33 @@ const styles = StyleSheet.create({
     writingDirection: 'rtl',
     textAlign: 'right',
   },
+
+  replyBox: {
+  width: '100%',
+  backgroundColor: '#F8F6FC',
+  borderRadius: 14,
+  padding: 12,
+  marginTop: 12,
+  borderWidth: 1,
+  borderColor: '#ECE7F7',
+},
+
+replyTitle: {
+  fontSize: 13,
+  fontWeight: '800',
+  color: '#4B3F72',
+  textAlign: 'right',
+  writingDirection: 'rtl',
+  marginBottom: 4,
+},
+
+replyText: {
+  fontSize: 13,
+  color: '#6E6A8A',
+  textAlign: 'right',
+  writingDirection: 'rtl',
+  lineHeight: 21,
+},
 });
 
 export default EvaluationScreen;

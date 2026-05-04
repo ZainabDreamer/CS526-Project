@@ -75,7 +75,10 @@ const CompanyCard = ({ company, onPress, style }) => {
             <Text style={[styles.city, { color: palette.subText }]}>
               {company.city}
             </Text>
-            <Text style={styles.locationIcon}>📍</Text>
+            <View style={styles.locationWrap}>
+            <View style={styles.locationPin} />
+            <View style={styles.locationDot} />
+           </View>
           </View>
 
           <View style={styles.bottomRow}>
@@ -166,10 +169,29 @@ const styles = StyleSheet.create({
     marginBottom: 10,
   },
 
-  locationIcon: {
-    fontSize: 12,
-    marginLeft: 6,
-  },
+   locationWrap: {
+  width: 12,
+  height: 16,
+  alignItems: 'center',
+  justifyContent: 'flex-start',
+  marginLeft: 6,
+  position: 'relative',
+},
+
+locationPin: {
+  width: 10,
+  height: 10,
+  borderRadius: 5,
+  backgroundColor: '#D94A4A',
+},
+
+locationDot: {
+  width: 2,
+  height: 6,
+  backgroundColor: '#7B6E8D',
+  marginTop: 1,
+  borderRadius: 2,
+},
 
   city: {
     fontSize: 14,

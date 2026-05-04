@@ -78,11 +78,12 @@ const SignLanguageHomeScreen = ({ navigation }) => {
 
       <View style={styles.headerRow}>
         <TouchableOpacity
-          style={[styles.iconButton, { backgroundColor: palette.iconButtonBg }]}
-          activeOpacity={0.85}
-        >
-          <BellIcon color={palette.iconColor} />
-        </TouchableOpacity>
+  
+  onPress={() => navigation.navigate(SCREEN_NAMES.NOTIFICATIONS)}
+  activeOpacity={0.85}
+>
+  <BellIcon color={palette.iconColor} />
+</TouchableOpacity>
 
         <Image
           source={require('../../assets/logo2.png')}
@@ -285,6 +286,7 @@ const styles = StyleSheet.create({
     fontWeight: '800',
     textAlign: 'right',
     writingDirection: 'rtl',
+    paddingHorizontal: 10,
   },
 
   sectionHint: {

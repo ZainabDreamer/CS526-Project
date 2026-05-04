@@ -1,4 +1,4 @@
-import React, { useMemo, useState, useCallback } from 'react';
+import React, { useMemo, useState, useCallback, useContext } from 'react';
 import {
   View,
   Text,
@@ -14,6 +14,19 @@ import CustomButton from '../components/CustomButton';
 import { SCREEN_NAMES } from '../constants/labels';
 import { mockJobs } from '../data/mockData';
 import { useTheme } from '../context/ThemeContext';
+import { useFocusEffect } from '@react-navigation/native';
+import { AuthContext } from '../context/AuthContext';
+import { db } from '../services/firebase';
+import {
+  collection,
+  query,
+  where,
+  getDocs,
+  addDoc,
+  deleteDoc,
+  doc,
+  serverTimestamp,
+} from 'firebase/firestore';
 
 const BackArrowIcon = ({ color = '#1F1655' }) => (
   <Text style={[styles.backArrowIcon, { color }]}>{'‹'}</Text>
@@ -49,6 +62,7 @@ const InfoMiniIcon = ({ color = '#4B3F72' }) => (
 
 const JobDetailsScreen = ({ navigation, route }) => {
   const { colors, darkMode } = useTheme();
+  const { user } = useContext(AuthContext);
   const { job } = route.params || {};
   const displayJob = job || mockJobs[0];
 
@@ -76,30 +90,110 @@ const JobDetailsScreen = ({ navigation, route }) => {
     heroSubText: darkMode ? '#B7B2C9' : '#8A85A0',
   };
 
-  const requirements = useMemo(
-    () => displayJob.requirements || [],
-    [displayJob.requirements]
-  );
+  const requirements = useMemo(() => {
+  if (Array.isArray(displayJob.requirements)) return displayJob.requirements;
 
-  const accessibilityFeatures = useMemo(
-    () => displayJob.accessibilityFeatures || [],
-    [displayJob.accessibilityFeatures]
-  );
+  if (displayJob.qualifications) {
+    return String(displayJob.qualifications)
+      .split('\n')
+      .map((item) => item.trim())
+      .filter(Boolean);
+  }
 
-  const handleSaveJob = useCallback(() => {
-    setIsSaved((prev) => {
-      const next = !prev;
+  return [];
+}, [displayJob.requirements, displayJob.qualifications]);
 
-      Alert.alert(
-        next ? 'تم حفظ الوظيفة' : 'تمت إزالة الحفظ',
-        next
-          ? 'تمت إضافة الوظيفة إلى الوظائف المحفوظة.'
-          : 'تمت إزالة الوظيفة من الوظائف المحفوظة.'
+const accessibilityFeatures = useMemo(() => {
+  if (Array.isArray(displayJob.accessibilityFeatures)) {
+    return displayJob.accessibilityFeatures;
+  }
+
+  if (displayJob.benefits) {
+    return String(displayJob.benefits)
+      .split('\n')
+      .map((item) => item.trim())
+      .filter(Boolean);
+  }
+
+  return [];
+}, [displayJob.accessibilityFeatures, displayJob.benefits]);
+
+  useFocusEffect(
+  useCallback(() => {
+    const checkSaved = async () => {
+      if (!user?.uid && !user?.id) return;
+
+      const userId = user?.uid || user?.id;
+
+      const q = query(
+        collection(db, 'savedJobs'),
+        where('userId', '==', userId),
+        where('jobId', '==', displayJob.id)
       );
 
-      return next;
-    });
-  }, []);
+      const snapshot = await getDocs(q);
+      setIsSaved(!snapshot.empty);
+    };
+
+    checkSaved();
+  }, [displayJob.id, user])
+);
+
+const handleSaveJob = useCallback(async () => {
+  try {
+    if (!user?.uid && !user?.id) {
+      Alert.alert('تنبيه', 'يرجى تسجيل الدخول أولاً.');
+      return;
+    }
+
+    const userId = user?.uid || user?.id;
+
+    const q = query(
+      collection(db, 'savedJobs'),
+      where('userId', '==', userId),
+      where('jobId', '==', displayJob.id)
+    );
+
+    const snapshot = await getDocs(q);
+
+    if (!snapshot.empty) {
+      await deleteDoc(doc(db, 'savedJobs', snapshot.docs[0].id));
+      setIsSaved(false);
+      Alert.alert('تمت الإزالة', 'تمت إزالة الوظيفة من المحفوظات.');
+      return;
+    }
+
+    await addDoc(collection(db, 'savedJobs'), {
+  userId,
+  jobId: displayJob.id,
+
+  job: {
+    ...displayJob,
+    id: displayJob.id,
+    company: displayJob.company || displayJob.orgName || 'جهة معتمدة',
+    orgName: displayJob.orgName || displayJob.company || 'جهة معتمدة',
+    score: Number(displayJob.score ?? displayJob.inclusivityScore ?? 0),
+  },
+
+  orgId: displayJob.orgId || null,
+  orgName: displayJob.orgName || displayJob.company || 'جهة معتمدة',
+  savedAt: serverTimestamp(),
+});
+
+    setIsSaved(true);
+
+    Alert.alert('تم الحفظ', 'تم حفظ الوظيفة في قائمتك.', [
+      { text: 'حسنًا' },
+      {
+        text: 'عرض المحفوظات',
+        onPress: () => navigation.navigate('SavedJobs'),
+      },
+    ]);
+  } catch (error) {
+    console.log('SAVE JOB ERROR:', error);
+    Alert.alert('خطأ', 'تعذر تحديث حالة حفظ الوظيفة.');
+  }
+}, [displayJob, isSaved, navigation, user]);
 
   const handleApplyNow = useCallback(() => {
     navigation.navigate(SCREEN_NAMES.JOB_APPLICATION, {
@@ -147,7 +241,7 @@ const JobDetailsScreen = ({ navigation, route }) => {
                 },
               ]}
             >
-              {displayJob.company === 'البنك السعودي' ? (
+              {(displayJob.company || displayJob.orgName) === 'البنك السعودي' ? (
                 <Text style={[styles.companyLogoText, { color: palette.primary }]}>
                   sic
                 </Text>
@@ -161,7 +255,7 @@ const JobDetailsScreen = ({ navigation, route }) => {
           </View>
 
           <Text style={[styles.companyName, { color: palette.heroSubText }]}>
-            {displayJob.company || 'جهة معتمدة'}
+            {displayJob.company || displayJob.orgName || 'جهة معتمدة'}
           </Text>
 
           <Text style={[styles.jobTitle, { color: palette.text }]}>
@@ -169,7 +263,8 @@ const JobDetailsScreen = ({ navigation, route }) => {
           </Text>
 
           <View style={styles.scoreRow}>
-            <ScoreIndicator percentage={displayJob.score || 91} size={74} />
+           <ScoreIndicator percentage={Number(displayJob.score ?? displayJob.inclusivityScore ?? 0)} size={74}
+/>
 
             <View style={styles.scoreTextWrap}>
               <Text style={[styles.scoreTitle, { color: palette.primary }]}>
@@ -323,7 +418,7 @@ const JobDetailsScreen = ({ navigation, route }) => {
                 { color: isSaved ? palette.primary : palette.saveText },
               ]}
             >
-              {isSaved ? 'تم الحفظ' : 'حفظ الوظيفة'}
+              {isSaved ? 'محفوظة ' : 'حفظ الوظيفة'}
             </Text>
           </TouchableOpacity>
         </View>
@@ -508,26 +603,28 @@ const styles = StyleSheet.create({
   },
 
   reqRow: {
-    flexDirection: 'row',
-    alignItems: 'flex-start',
-    marginBottom: 10,
-  },
+  flexDirection: 'row-reverse',
+  alignItems: 'flex-start',
+  justifyContent: 'flex-start',
+  marginBottom: 10,
+  width: '100%',
+},
 
-  reqText: {
-    fontSize: 14,
-    textAlign: 'right',
-    writingDirection: 'rtl',
-    flex: 1,
-    lineHeight: 22,
-    marginLeft: 8,
-  },
+reqText: {
+  flex: 1,
+  fontSize: 14,
+  textAlign: 'right',
+  writingDirection: 'rtl',
+  lineHeight: 22,
+  marginRight: 8,
+},
 
-  bulletDot: {
-    width: 7,
-    height: 7,
-    borderRadius: 3.5,
-    marginTop: 8,
-  },
+bulletDot: {
+  width: 7,
+  height: 7,
+  borderRadius: 3.5,
+  marginTop: 8,
+},
 
   emptyText: {
     fontSize: 13,
@@ -565,18 +662,21 @@ const styles = StyleSheet.create({
   },
 
   featureRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    marginBottom: 10,
-  },
+  flexDirection: 'row-reverse',
+  alignItems: 'center',
+  justifyContent: 'flex-start',
+  marginBottom: 10,
+  width: '100%',
+},
 
-  featureText: {
-    fontSize: 13,
-    textAlign: 'left',
-    writingDirection: 'rtl',
-    marginLeft: 10,
-    flex: 1,
-  },
+featureText: {
+  flex: 1,
+  fontSize: 13,
+  textAlign: 'right',
+  writingDirection: 'rtl',
+  marginRight: 10,
+  lineHeight: 21,
+},
 
   checkWrap: {
     width: 18,

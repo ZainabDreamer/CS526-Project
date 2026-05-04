@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useContext } from 'react';
 import {
   View,
   Text,
@@ -11,6 +11,9 @@ import {
 } from 'react-native';
 import * as Speech from 'expo-speech';
 import { useTheme } from '../context/ThemeContext';
+import { AuthContext } from '../context/AuthContext';
+import { db } from '../services/firebase';
+import { collection, addDoc, serverTimestamp } from 'firebase/firestore';
 
 const QUICK_PHRASES = [
   'مرحبًا',
@@ -53,6 +56,7 @@ const TextCardIcon = ({ color = '#4B3F72' }) => (
 );
 
 const SignLanguageCommunicationScreen = ({ navigation }) => {
+  const { user } = useContext(AuthContext);
   const theme = useTheme();
   const darkMode = theme?.darkMode ?? false;
   const colors = theme?.colors ?? {
@@ -68,6 +72,20 @@ const SignLanguageCommunicationScreen = ({ navigation }) => {
     'اكتب الرسالة هنا ثم اعرضها أو شغّلها صوتيًا.'
   );
 
+  // ✅ M4 DATA: حفظ الرسائل
+  const saveMessage = async (text) => {
+  try {
+    await addDoc(collection(db, 'signLanguageMessages'), {
+      userId: user?.uid || user?.id || null,
+      userName: user?.name || '',
+      text,
+      type: 'text_to_speech',
+      createdAt: serverTimestamp(),
+    });
+  } catch (e) {
+    console.log('SAVE SIGN LANGUAGE MESSAGE ERROR:', e);
+  }
+};
   const palette = {
     pageBg: colors.background,
     cardBg: colors.card,
@@ -86,9 +104,15 @@ const SignLanguageCommunicationScreen = ({ navigation }) => {
   };
 
   const handleApplyText = () => {
-    if (!inputText.trim()) return;
-    setDisplayText(inputText.trim());
-  };
+  if (!inputText.trim()) return;
+
+  const text = inputText.trim();
+
+  setDisplayText(text);
+
+  // ✅ حفظ الرسالة
+  saveMessage(text);
+};
 
   const handleSpeak = () => {
     const text = (displayText || '').trim();
@@ -103,9 +127,12 @@ const SignLanguageCommunicationScreen = ({ navigation }) => {
   };
 
   const handleQuickPhrase = (phrase) => {
-    setInputText(phrase);
-    setDisplayText(phrase);
-  };
+  setInputText(phrase);
+  setDisplayText(phrase);
+
+  // ✅ حفظ العبارة
+  saveMessage(phrase);
+};
 
   return (
     <View style={[styles.container, { backgroundColor: palette.pageBg }]}>
@@ -116,12 +143,13 @@ const SignLanguageCommunicationScreen = ({ navigation }) => {
 
       
       <View style={styles.headerRow}>
-        <TouchableOpacity
-          style={[styles.iconButton, { backgroundColor: palette.iconButtonBg }]}
-          activeOpacity={0.85}
-        >
-          <BellIcon color={palette.iconColor} />
-        </TouchableOpacity>
+       <TouchableOpacity
+  style={[styles.iconButton, { backgroundColor: palette.cardBg }]}
+  onPress={() => navigation.navigate(SCREEN_NAMES.NOTIFICATIONS)}
+  activeOpacity={0.85}
+>
+  <BellIcon color={palette.iconColor} />
+</TouchableOpacity>
 
         <Image
           source={require('../../assets/logo2.png')}
@@ -130,7 +158,7 @@ const SignLanguageCommunicationScreen = ({ navigation }) => {
         />
 
         <TouchableOpacity
-          style={[styles.iconButton, { backgroundColor: palette.iconButtonBg }]}
+          
           onPress={() => navigation.goBack()}
           activeOpacity={0.85}
         >
@@ -145,9 +173,6 @@ const SignLanguageCommunicationScreen = ({ navigation }) => {
         
         <View style={styles.sectionHeader}>
           <Text style={[styles.sectionHint, { color: palette.subText }]}> </Text>
-          <Text style={[styles.sectionTitle, { color: palette.text }]}>
-            التواصل النصي والصوتي
-          </Text>
         </View>
 
         
@@ -359,13 +384,6 @@ const styles = StyleSheet.create({
     justifyContent: 'space-between',
     alignItems: 'center',
     marginBottom: 12,
-  },
-
-  sectionTitle: {
-    fontSize: 18,
-    fontWeight: '800',
-    textAlign: 'right',
-    writingDirection: 'rtl',
   },
 
   sectionHint: {

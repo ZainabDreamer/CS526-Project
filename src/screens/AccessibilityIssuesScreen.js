@@ -1,5 +1,4 @@
-
-import React, { useMemo, useState } from 'react';
+import React, { useMemo, useState, useCallback, useContext } from 'react';
 import {
   View,
   Text,
@@ -12,13 +11,20 @@ import {
 } from 'react-native';
 import { useTheme } from '../context/ThemeContext';
 import AccessibilityIssueCard from '../components/AccessibilityIssueCard';
-import { mockAccessibilityIssues } from '../data/mockData';
-import { SCREEN_NAMES, MOCK_ORG_USER } from '../constants/labels';
+import { SCREEN_NAMES } from '../constants/labels';
+import { useFocusEffect } from '@react-navigation/native';
+import { AuthContext } from '../context/AuthContext';
+import { db } from '../services/firebase';
+import {
+  collection,
+  getDocs,
+} from 'firebase/firestore';
+
 const TABS = [
   { key: 'dashboard', label: 'الشمولية' },
   { key: 'evaluations', label: 'التقييمات' },
   { key: 'interviews', label: 'المقابلات' },
-  { key: 'addJob', label: 'إضافة فرصة' },
+  { key: 'orgJobs', label: 'فُرصي' },
 ];
 const BellIcon = ({ color = '#1F1655' }) => (
   <View style={styles.bellShapeWrap}>
@@ -47,8 +53,11 @@ const FilterIcon = ({ color = '#8F8B9E' }) => (
 );
 const AccessibilityIssuesScreen = ({ navigation }) => {
   const { colors, darkMode } = useTheme();
+  const { user } = useContext(AuthContext);
   const [activeTab, setActiveTab] = useState('new');
   const [search, setSearch] = useState('');
+  const [issues, setIssues] = useState([]);
+
   const palette = {
     pageBg: colors.background,
     cardBg: colors.card,
@@ -66,19 +75,97 @@ const AccessibilityIssuesScreen = ({ navigation }) => {
     inactiveTabText: darkMode ? '#C0BAD5' : '#6E6A8A',
     avatarBg: darkMode ? '#2A273A' : '#F0EEF7',
   };
-  const filteredIssues = useMemo(() => {
-    const base =
-      activeTab === 'previous'
-        ? mockAccessibilityIssues.filter((issue) => issue.response)
-        : mockAccessibilityIssues.filter((issue) => !issue.response);
-    if (!search.trim()) return base;
-    const q = search.trim().toLowerCase();
-    return base.filter((issue) => {
-      const title = String(issue.title || '').toLowerCase();
-      const description = String(issue.description || '').toLowerCase();
-      return title.includes(q) || description.includes(q);
-    });
-  }, [activeTab, search]);
+
+  useFocusEffect(
+  useCallback(() => {
+    const loadIssues = async () => {
+      try {
+        const orgIdentifiers = [
+          user?.uid,
+          user?.id,
+          user?.orgId,
+          user?.orgName,
+          user?.name,
+        ].filter(Boolean);
+
+        if (orgIdentifiers.length === 0) {
+          setIssues([]);
+          return;
+        }
+
+        const snapshot = await getDocs(collection(db, 'evaluations'));
+
+        const data = snapshot.docs
+          .map((docSnap) => {
+            const item = {
+              id: docSnap.id,
+              ...docSnap.data(),
+            };
+
+            const matchOrg =
+              orgIdentifiers.includes(item.orgId) ||
+              orgIdentifiers.includes(item.orgName) ||
+              orgIdentifiers.includes(item.company?.id) ||
+              orgIdentifiers.includes(item.company?.name);
+
+            if (!matchOrg) return null;
+
+            return {
+              id: item.id,
+              title: item.orgName || item.company?.name || 'تقييم جديد',
+              description: item.notes || 'لا توجد ملاحظات',
+              rating: item.rating || 0,
+              isReady: item.isReady || '',
+              treatment: item.treatment || '',
+              suggestions: item.suggestions || '',
+              applicantName: item.userName || 'باحث عن عمل',
+              status: item.orgReply?.text ? 'resolved' : 'new',
+              response: item.orgReply?.text || '',
+              rawEvaluation: item,
+            };
+          })
+          .filter(Boolean)
+          .sort((a, b) => {
+            const aDate = a.rawEvaluation?.createdAt?.toDate
+              ? a.rawEvaluation.createdAt.toDate()
+              : new Date(0);
+
+            const bDate = b.rawEvaluation?.createdAt?.toDate
+              ? b.rawEvaluation.createdAt.toDate()
+              : new Date(0);
+
+            return bDate - aDate;
+          });
+
+        setIssues(data);
+      } catch (error) {
+        console.log('LOAD ORG EVALUATIONS ERROR:', error);
+        setIssues([]);
+      }
+    };
+
+    loadIssues();
+  }, [user])
+);
+   const filteredIssues = useMemo(() => {
+  const base =
+    activeTab === 'previous'
+      ? issues.filter((issue) => issue.status === 'resolved' || issue.response)
+      : issues.filter((issue) => issue.status !== 'resolved' && !issue.response);
+
+  if (!search.trim()) return base;
+
+  const q = search.trim().toLowerCase();
+
+  return base.filter((issue) => {
+    const title = String(issue.title || '').toLowerCase();
+    const description = String(issue.description || '').toLowerCase();
+
+    return title.includes(q) || description.includes(q);
+  });
+}, [activeTab, search, issues]);
+
+
   const handleMainTab = (key) => {
     if (key === 'dashboard') {
       navigation.navigate(SCREEN_NAMES.ORG_DASHBOARD);
@@ -88,10 +175,10 @@ const AccessibilityIssuesScreen = ({ navigation }) => {
       navigation.navigate(SCREEN_NAMES.APPLICANTS_LIST);
       return;
     }
-    if (key === 'addJob') {
-      navigation.navigate(SCREEN_NAMES.ADD_JOB);
-      return;
-    }
+    if (key === 'orgJobs') {
+  navigation.navigate(SCREEN_NAMES.ORG_JOBS);
+  return;
+}
   };
   return (
     <View style={[styles.container, { backgroundColor: palette.pageBg }]}>
@@ -123,11 +210,12 @@ const AccessibilityIssuesScreen = ({ navigation }) => {
 
 
   <TouchableOpacity
-    style={[styles.iconButton, { backgroundColor: palette.cardBg }]}
-    activeOpacity={0.85}
-  >
-    <BellIcon color={palette.iconColor} />
-  </TouchableOpacity>
+  
+  onPress={() => navigation.navigate(SCREEN_NAMES.NOTIFICATIONS)}
+  activeOpacity={0.85}
+>
+  <BellIcon color={palette.iconColor} />
+</TouchableOpacity>
 
 </View>
         

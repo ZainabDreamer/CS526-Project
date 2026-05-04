@@ -10,23 +10,6 @@ import {
 import { LinearGradient } from 'expo-linear-gradient';
 import { useTheme } from '../context/ThemeContext';
 import AppHeader from '../components/AppHeader';
-import CustomButton from '../components/CustomButton';
-import { SCREEN_NAMES } from '../constants/labels';
-
-const BellIcon = ({ color = '#1F1655' }) => (
-  <View style={styles.bellShapeWrap}>
-    <View style={[styles.bellTop, { backgroundColor: color }]} />
-    <View style={[styles.bellBody, { backgroundColor: color }]} />
-    <View style={[styles.bellClapper, { backgroundColor: color }]} />
-  </View>
-);
-
-const ProfileIcon = ({ color = '#1F1655' }) => (
-  <View style={styles.profileMiniWrap}>
-    <View style={[styles.profileHead, { backgroundColor: color }]} />
-    <View style={[styles.profileBody, { backgroundColor: color }]} />
-  </View>
-);
 
 const SuccessIcon = ({ bg = '#EAF8F1', color = '#36B487' }) => (
   <View style={styles.successIconWrap}>

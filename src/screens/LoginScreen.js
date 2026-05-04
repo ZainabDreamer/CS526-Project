@@ -1,4 +1,4 @@
-import React, { useRef, useState } from 'react';
+import React, { useRef, useState, useContext } from 'react';
 import {
   View,
   Text,
@@ -21,6 +21,7 @@ import {
 import { LinearGradient } from 'expo-linear-gradient';
 import { Ionicons } from '@expo/vector-icons';
 import { SCREEN_NAMES } from '../constants/labels';
+import { AuthContext } from '../context/AuthContext';
 
 const { height } = Dimensions.get('window');
 
@@ -54,6 +55,9 @@ const PasswordToggle = ({ visible, onPress }) => (
 );
 
 const LoginScreen = ({ navigation }) => {
+  // ✅ M4 AUTH CONNECTION: ربط صفحة تسجيل الدخول مع Firebase Auth + Firestore
+  const { login } = useContext(AuthContext);
+
   const [identifier, setIdentifier] = useState('');
   const [password, setPassword] = useState('');
   const [rememberMe, setRememberMe] = useState(false);
@@ -135,53 +139,6 @@ const LoginScreen = ({ navigation }) => {
     ]).start();
   };
 
-  const mockAuthenticate = async () => {
-    return new Promise((resolve, reject) => {
-      setTimeout(() => {
-        const normalized = identifier.trim().toLowerCase();
-        const pass = password.trim();
-
-        const jobSeekerValid =
-          (normalized === 'jobseeker@test.com' || normalized === 'باحث') &&
-          pass === '123456';
-
-        const organizationValid =
-          (normalized === 'org@test.com' || normalized === 'منظمة') &&
-          pass === '123456';
-
-        if (accountType === 'jobSeeker' && jobSeekerValid) {
-          resolve({
-            success: true,
-            role: 'jobSeeker',
-            user: { name: 'باحث عن عمل' },
-          });
-          return;
-        }
-
-        if (accountType === 'organization' && organizationValid) {
-          resolve({
-            success: true,
-            role: 'organization',
-            user: { name: 'منظمة' },
-          });
-          return;
-        }
-
-        if (jobSeekerValid && accountType !== 'jobSeeker') {
-          reject(new Error('تم اختيار نوع حساب غير مطابق. هذا الحساب يخص باحث عن عمل.'));
-          return;
-        }
-
-        if (organizationValid && accountType !== 'organization') {
-          reject(new Error('تم اختيار نوع حساب غير مطابق. هذا الحساب يخص منظمة.'));
-          return;
-        }
-
-        reject(new Error('بيانات الدخول غير صحيحة.'));
-      }, 900);
-    });
-  };
-
   const handleLogin = async () => {
     const trimmedIdentifier = identifier.trim();
     const trimmedPassword = password.trim();
@@ -198,15 +155,30 @@ const LoginScreen = ({ navigation }) => {
 
     try {
       setIsLoading(true);
-      const response = await mockAuthenticate();
+
+      // ✅ M4 AUTH CONNECTION: التحقق من بيانات المستخدم المخزنة في Firebase
+      const response = await login(
+          trimmedIdentifier,
+          trimmedPassword,
+          accountType 
+         );
+
       setIsLoading(false);
 
-      if (response.role === 'jobSeeker') {
+      if (!response?.success || !response?.user) {
+        runShake();
+        Alert.alert('فشل تسجيل الدخول', 'بيانات الدخول غير صحيحة أو الحساب غير موجود.');
+        return;
+      }
+
+      const user = response.user;
+
+      if (user.role === 'jobSeeker') {
         navigation.replace('JobSeekerTabNavigator');
         return;
       }
 
-      if (response.role === 'organization') {
+      if (user.role === 'organization') {
         navigation.replace('OrgTabNavigator');
         return;
       }
@@ -215,7 +187,7 @@ const LoginScreen = ({ navigation }) => {
     } catch (error) {
       setIsLoading(false);
       runShake();
-      Alert.alert('فشل تسجيل الدخول', error.message);
+      Alert.alert('فشل تسجيل الدخول', error?.message || 'حدث خطأ أثناء تسجيل الدخول.');
     }
   };
 

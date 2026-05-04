@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useContext, useState } from 'react';
 import {
   View,
   Text,
@@ -10,9 +10,13 @@ import {
   Alert,
   Modal,
   Image,
+  KeyboardAvoidingView,
+  Platform,
 } from 'react-native';
 import * as DocumentPicker from 'expo-document-picker';
-import { SCREEN_NAMES } from '../constants/labels';
+import { AuthContext } from '../context/AuthContext';
+import { db } from '../services/firebase';
+import { doc, setDoc, serverTimestamp } from 'firebase/firestore';
 
 const CITIES = ['الدمام', 'الخبر', 'الظهران', 'الجبيل', 'الأحساء', 'أخرى'];
 
@@ -26,7 +30,6 @@ const DISTRICTS = {
 };
 
 const MOWAAMAH_OPTIONS = ['نعم', 'لا', 'قيد الإجراء'];
-
 
 const BackArrowIcon = ({ color = '#4B3F72' }) => (
   <Text style={[styles.backArrowIcon, { color }]}>{'‹'}</Text>
@@ -53,6 +56,7 @@ const SelectionModal = ({
           <ScrollView showsVerticalScrollIndicator={false}>
             {options.map((item) => {
               const isSelected = selectedValue === item;
+
               return (
                 <TouchableOpacity
                   key={item}
@@ -92,20 +96,25 @@ const SelectionModal = ({
   );
 };
 
-const SignUpOrganizationStep2Screen = ({ navigation }) => {
+const SignUpOrganizationStep2Screen = ({ navigation, route }) => {
+  const { register } = useContext(AuthContext);
+  const step1Form = route?.params?.form || {};
+
   const [hasMowaamah, setHasMowaamah] = useState('');
   const [uploadedFile, setUploadedFile] = useState(null);
   const [city, setCity] = useState('');
   const [customCity, setCustomCity] = useState('');
   const [district, setDistrict] = useState('');
   const [customDistrict, setCustomDistrict] = useState('');
+  const [email, setEmail] = useState('');
+  const [inclusivityScore, setInclusivityScore] = useState('');
   const [password, setPassword] = useState('');
 
   const [mowaamahModalVisible, setMowaamahModalVisible] = useState(false);
   const [cityModalVisible, setCityModalVisible] = useState(false);
   const [districtModalVisible, setDistrictModalVisible] = useState(false);
 
-  const currentDistricts = city ? (DISTRICTS[city] || ['أخرى']) : [];
+  const currentDistricts = city ? DISTRICTS[city] || ['أخرى'] : [];
 
   const sanitizeArabicEnglishText = (value) => {
     return value
@@ -116,6 +125,16 @@ const SignUpOrganizationStep2Screen = ({ navigation }) => {
 
   const sanitizePassword = (value) => {
     return value.replace(/\s/g, '').slice(0, 30);
+  };
+
+  const sanitizeEmail = (value) => {
+    return value.replace(/\s/g, '').slice(0, 100);
+  };
+
+  const sanitizeScore = (value) => {
+    const cleaned = value.replace(/[^0-9]/g, '').slice(0, 3);
+    if (Number(cleaned) > 100) return '100';
+    return cleaned;
   };
 
   const handlePickFile = async () => {
@@ -129,6 +148,7 @@ const SignUpOrganizationStep2Screen = ({ navigation }) => {
       if (result.canceled) return;
 
       const file = result.assets?.[0];
+
       if (file) {
         setUploadedFile(file);
       }
@@ -143,13 +163,17 @@ const SignUpOrganizationStep2Screen = ({ navigation }) => {
     setCustomDistrict('');
   };
 
-  const handleSubmit = () => {
+  const handleSubmit = async () => {
     const missing = [];
+
+    const cleanEmail = email.trim().toLowerCase();
+    const cleanPassword = password.trim();
 
     if (!hasMowaamah.trim()) missing.push('حالة شهادة المواءمة');
     if (!city.trim()) missing.push('المدينة');
     if (city === 'أخرى' && !customCity.trim()) missing.push('اسم المدينة');
-    if (!password.trim()) missing.push('كلمة المرور');
+    if (!cleanEmail) missing.push('البريد الإلكتروني');
+    if (!cleanPassword) missing.push('كلمة المرور');
 
     if (district === 'أخرى' && !customDistrict.trim()) {
       missing.push('اسم الحي');
@@ -183,27 +207,136 @@ const SignUpOrganizationStep2Screen = ({ navigation }) => {
       return;
     }
 
-    if (password.length < 8) {
+    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+
+    if (!emailRegex.test(cleanEmail)) {
+      Alert.alert('خطأ', 'يرجى إدخال بريد إلكتروني صحيح');
+      return;
+    }
+
+    let scoreNumber = null;
+
+    if (inclusivityScore.trim()) {
+      scoreNumber = Number(inclusivityScore);
+
+      if (Number.isNaN(scoreNumber) || scoreNumber < 0 || scoreNumber > 100) {
+        Alert.alert('خطأ', 'نسبة الشمولية يجب أن تكون بين 0 و 100');
+        return;
+      }
+    }
+
+    if (cleanPassword.length < 8) {
       Alert.alert('خطأ', 'كلمة المرور يجب أن تكون 8 أحرف على الأقل');
       return;
     }
 
-    if (!/[A-Za-z]/.test(password) || !/[0-9]/.test(password)) {
+    if (!/[A-Za-z]/.test(cleanPassword) || !/[0-9]/.test(cleanPassword)) {
       Alert.alert('خطأ', 'كلمة المرور يجب أن تحتوي على أحرف إنجليزية وأرقام');
       return;
     }
 
-    const payload = {
+    const finalOrganization = {
+      ...step1Form,
+
+      role: 'organization',
+      email: cleanEmail,
+      username: step1Form.username,
+      password: cleanPassword,
+
+      name: step1Form.orgName || step1Form.name,
+      orgName: step1Form.orgName || step1Form.name,
+      representativeName: step1Form.representativeName,
+      phone: step1Form.phone,
+      orgSector: step1Form.orgSector,
+
+      ...(step1Form.sectorSize ? { sectorSize: step1Form.sectorSize } : {}),
+
       hasMowaamah,
-      uploadedFile,
+
+      mowaamahCertificate: uploadedFile
+        ? {
+            name: uploadedFile.name,
+            uri: uploadedFile.uri,
+            mimeType: uploadedFile.mimeType || '',
+            size: uploadedFile.size || 0,
+          }
+        : null,
+
+      inclusivityScore: scoreNumber,
+
       city: finalCity,
       district: finalDistrict || '',
-      password,
+
+      ...(city === 'أخرى' && customCity.trim()
+        ? { customCity: customCity.trim() }
+        : {}),
+
+      ...(district === 'أخرى' && customDistrict.trim()
+        ? { customDistrict: customDistrict.trim() }
+        : {}),
+
+      createdAt: new Date().toISOString(),
     };
 
-    console.log('SIGNUP_ORGANIZATION_STEP2_PAYLOAD', payload);
+    try {
+      const result = await register(finalOrganization);
 
-    navigation.replace('OrgTabNavigator');
+      if (!result.success) {
+        Alert.alert(
+          'تعذر إنشاء الحساب',
+          result.message || 'حدث خطأ أثناء حفظ حساب المنظمة.'
+        );
+        return;
+      }
+
+      const uid = result.user.uid || result.user.id;
+
+      await setDoc(doc(db, 'organizations', uid), {
+        id: uid,
+        ownerId: uid,
+        role: 'organization',
+
+        orgName: finalOrganization.orgName,
+        name: finalOrganization.orgName,
+        representativeName: finalOrganization.representativeName,
+        username: finalOrganization.username,
+        email: finalOrganization.email,
+        phone: finalOrganization.phone,
+
+        ...(finalOrganization.sectorSize
+          ? { sectorSize: finalOrganization.sectorSize }
+          : {}),
+
+        orgSector: finalOrganization.orgSector,
+
+        hasMowaamah: finalOrganization.hasMowaamah,
+        mowaamahCertificate: finalOrganization.mowaamahCertificate,
+        inclusivityScore: finalOrganization.inclusivityScore,
+
+        city: finalOrganization.city,
+        district: finalOrganization.district,
+
+        ...(finalOrganization.customCity
+          ? { customCity: finalOrganization.customCity }
+          : {}),
+
+        ...(finalOrganization.customDistrict
+          ? { customDistrict: finalOrganization.customDistrict }
+          : {}),
+
+        createdAt: serverTimestamp(),
+      });
+
+      Alert.alert('تم إنشاء الحساب', 'تم حفظ حساب المنظمة بنجاح.', [
+        {
+          text: 'متابعة',
+          onPress: () => navigation.replace('OrgTabNavigator'),
+        },
+      ]);
+    } catch (error) {
+      console.log('ORG REGISTER ERROR:', error);
+      Alert.alert('خطأ', 'حدث خطأ أثناء إنشاء حساب المنظمة.');
+    }
   };
 
   const renderRequiredLabel = (text) => (
@@ -219,7 +352,11 @@ const SignUpOrganizationStep2Screen = ({ navigation }) => {
   );
 
   return (
-    <View style={styles.container}>
+    <KeyboardAvoidingView
+      style={styles.container}
+      behavior={Platform.OS === 'ios' ? 'padding' : undefined}
+      keyboardVerticalOffset={10}
+    >
       <StatusBar barStyle="dark-content" backgroundColor="#F3F1FA" />
 
       <SelectionModal
@@ -249,13 +386,11 @@ const SignUpOrganizationStep2Screen = ({ navigation }) => {
         onClose={() => setDistrictModalVisible(false)}
       />
 
-      
       <View style={styles.progressBarWrap}>
         <View style={styles.progressTrack} />
         <View style={styles.progressFill} />
       </View>
 
-      
       <View style={styles.headerRow}>
         <TouchableOpacity
           style={styles.iconButton}
@@ -277,6 +412,7 @@ const SignUpOrganizationStep2Screen = ({ navigation }) => {
       <ScrollView
         contentContainerStyle={styles.content}
         showsVerticalScrollIndicator={false}
+        keyboardShouldPersistTaps="handled"
       >
         <View style={styles.sectionHeader}>
           <Text style={styles.sectionHint}> </Text>
@@ -289,6 +425,7 @@ const SignUpOrganizationStep2Screen = ({ navigation }) => {
           <View style={styles.labelRow}>
             {renderRequiredLabel('هل المنظمة حاصلة على شهادة المواءمة ؟')}
           </View>
+
           <TouchableOpacity
             style={styles.selectBox}
             onPress={() => setMowaamahModalVisible(true)}
@@ -305,19 +442,14 @@ const SignUpOrganizationStep2Screen = ({ navigation }) => {
               ? renderRequiredLabel('رفع شهادة المواءمة')
               : renderOptionalLabel('رفع الملف')}
           </View>
+
           <TouchableOpacity
-            style={[
-              styles.uploadBtn,
-              uploadedFile && styles.uploadedBox,
-            ]}
+            style={[styles.uploadBtn, uploadedFile && styles.uploadedBox]}
             onPress={handlePickFile}
             activeOpacity={0.85}
           >
             <Text
-              style={[
-                styles.uploadText,
-                uploadedFile && styles.uploadedText,
-              ]}
+              style={[styles.uploadText, uploadedFile && styles.uploadedText]}
               numberOfLines={1}
             >
               {uploadedFile ? uploadedFile.name : 'اضغط لرفع الملف'}
@@ -325,8 +457,26 @@ const SignUpOrganizationStep2Screen = ({ navigation }) => {
           </TouchableOpacity>
 
           <View style={styles.labelRow}>
+            {renderOptionalLabel('نسبة الشمولية')}
+          </View>
+
+          <View style={styles.inputBox}>
+            <TextInput
+              value={inclusivityScore}
+              onChangeText={(v) => setInclusivityScore(sanitizeScore(v))}
+              keyboardType="numeric"
+              placeholder="اختياري (0 - 100)"
+              placeholderTextColor="#9A96B2"
+              style={styles.input}
+              textAlign="right"
+              maxLength={3}
+            />
+          </View>
+
+          <View style={styles.labelRow}>
             {renderRequiredLabel('المدينة')}
           </View>
+
           <TouchableOpacity
             style={styles.selectBox}
             onPress={() => setCityModalVisible(true)}
@@ -343,6 +493,7 @@ const SignUpOrganizationStep2Screen = ({ navigation }) => {
               <View style={styles.labelRow}>
                 {renderRequiredLabel('اكتب اسم المدينة')}
               </View>
+
               <View style={styles.inputBox}>
                 <TextInput
                   value={customCity}
@@ -362,6 +513,7 @@ const SignUpOrganizationStep2Screen = ({ navigation }) => {
           <View style={styles.labelRow}>
             {renderOptionalLabel('الحي')}
           </View>
+
           <TouchableOpacity
             style={styles.selectBox}
             onPress={() => {
@@ -369,11 +521,13 @@ const SignUpOrganizationStep2Screen = ({ navigation }) => {
                 Alert.alert('تنبيه', 'يرجى اختيار المدينة أولاً');
                 return;
               }
+
               setDistrictModalVisible(true);
             }}
             activeOpacity={0.8}
           >
             <SelectArrowIcon />
+
             <Text style={[styles.selectText, !district && styles.placeholderText]}>
               {district || 'اضغط لاختيار الحي'}
             </Text>
@@ -384,6 +538,7 @@ const SignUpOrganizationStep2Screen = ({ navigation }) => {
               <View style={styles.labelRow}>
                 {renderOptionalLabel('اكتب اسم الحي')}
               </View>
+
               <View style={styles.inputBox}>
                 <TextInput
                   value={customDistrict}
@@ -401,14 +556,33 @@ const SignUpOrganizationStep2Screen = ({ navigation }) => {
           )}
 
           <View style={styles.labelRow}>
+            {renderRequiredLabel('البريد الإلكتروني')}
+          </View>
+
+          <View style={styles.inputBox}>
+            <TextInput
+              value={email}
+              onChangeText={(v) => setEmail(sanitizeEmail(v))}
+              keyboardType="email-address"
+              autoCapitalize="none"
+              placeholder="example@company.com"
+              placeholderTextColor="#9A96B2"
+              style={styles.input}
+              textAlign="right"
+              maxLength={100}
+            />
+          </View>
+
+          <View style={styles.labelRow}>
             {renderRequiredLabel('كلمة المرور')}
           </View>
+
           <View style={styles.inputBox}>
             <TextInput
               value={password}
               onChangeText={(v) => setPassword(sanitizePassword(v))}
               secureTextEntry
-              placeholder="أدخل كلمة المرور"
+              placeholder="8 أحرف على الأقل وتحتوي على حرف ورقم"
               placeholderTextColor="#9A96B2"
               style={styles.input}
               textAlign="right"
@@ -427,9 +601,9 @@ const SignUpOrganizationStep2Screen = ({ navigation }) => {
           <Text style={styles.primaryButtonText}>إنشاء حساب للمنظمة</Text>
         </TouchableOpacity>
 
-        <View style={{ height: 30 }} />
+        <View style={{ height: 70 }} />
       </ScrollView>
-    </View>
+    </KeyboardAvoidingView>
   );
 };
 

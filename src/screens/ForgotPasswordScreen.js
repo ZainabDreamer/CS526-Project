@@ -12,19 +12,41 @@ import {
 } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
 import CustomButton from '../components/CustomButton';
+import { getAuth, sendPasswordResetEmail } from 'firebase/auth';
 
 const ForgotPasswordScreen = () => {
   const [email, setEmail] = useState('');
 
-  const handleReset = () => {
-    if (!email.trim()) {
-      Alert.alert('خطأ', 'يرجى إدخال البريد الإلكتروني');
-      return;
-    }
+ const handleReset = async () => {
+  const cleanEmail = email.trim().toLowerCase();
 
-    Alert.alert('تم الإرسال', 'تم إرسال رابط إعادة تعيين كلمة المرور');
-  };
+  if (!cleanEmail) {
+    Alert.alert('خطأ', 'يرجى إدخال البريد الإلكتروني');
+    return;
+  }
 
+  const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+
+  if (!emailRegex.test(cleanEmail)) {
+    Alert.alert('خطأ', 'يرجى إدخال بريد إلكتروني صحيح');
+    return;
+  }
+
+  try {
+    const auth = getAuth();
+    await sendPasswordResetEmail(auth, cleanEmail);
+
+    Alert.alert(
+      'تم الإرسال',
+      'تم إرسال رابط إعادة تعيين كلمة المرور إلى بريدك الإلكتروني.'
+    );
+  } catch (error) {
+    Alert.alert(
+      'خطأ',
+      'تعذر إرسال رابط إعادة التعيين. تأكدي من البريد الإلكتروني وحاولي مرة أخرى.'
+    );
+  }
+};
   return (
     <View style={styles.container}>
       <StatusBar barStyle="light-content" translucent backgroundColor="transparent" />
@@ -60,12 +82,15 @@ const ForgotPasswordScreen = () => {
 
               <View style={styles.inputWrapper}>
                 <TextInput
-                  value={email}
-                  onChangeText={setEmail}
-                  placeholder="Insert your E-mail or Username here"
-                  placeholderTextColor="#A7A7A7"
-                  style={styles.input}
-                />
+  value={email}
+  onChangeText={setEmail}
+  placeholder="example@email.com"
+  placeholderTextColor="#A7A7A7"
+  style={styles.input}
+  keyboardType="email-address"
+  autoCapitalize="none"
+  autoCorrect={false}
+/>
               </View>
 
               <CustomButton

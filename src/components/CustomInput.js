@@ -41,7 +41,7 @@ const CustomInput = ({
           keyboardType={keyboardType}
           multiline={multiline}
           numberOfLines={numberOfLines}
-          textAlign="left"
+          textAlign="right"
           editable={editable}
         />
         {isPassword && (
@@ -98,6 +98,8 @@ const styles = StyleSheet.create({
   multilineInput: {
     minHeight: 80,
     textAlignVertical: 'top',
+    textAlign: 'right',
+    writingDirection: 'rtl'
   },
   inputWithLeft: {
     paddingRight: 8,

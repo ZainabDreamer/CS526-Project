@@ -1,4 +1,4 @@
-import React, { useState, useCallback } from 'react';
+import React, { useState, useCallback, useContext } from 'react';
 import {
   View,
   Text,
@@ -13,8 +13,11 @@ import {
   ActivityIndicator,
 } from 'react-native';
 import * as DocumentPicker from 'expo-document-picker';
-import { SCREEN_NAMES, MOCK_USER } from '../constants/labels';
+import { SCREEN_NAMES } from '../constants/labels';
 import { useTheme } from '../context/ThemeContext';
+import { AuthContext } from '../context/AuthContext';
+import { db } from '../services/firebase';
+import { collection, addDoc, serverTimestamp } from 'firebase/firestore';
 
 const BackArrowIcon = ({ color = '#1F1655' }) => (
   <Text style={[styles.backArrowIcon, { color }]}>{'‹'}</Text>
@@ -80,7 +83,7 @@ const LocalInput = ({
           placeholder=""
           placeholderTextColor={palette.placeholder}
           style={[styles.inputText, { color: palette.text }]}
-          textAlign="left"
+          textAlign="right"
         />
       </View>
     </View>
@@ -89,20 +92,21 @@ const LocalInput = ({
 
 const JobApplicationScreen = ({ navigation, route }) => {
   const { colors, darkMode } = useTheme();
+  const { user } = useContext(AuthContext);
   const { job } = route.params || {};
 
   const [form, setForm] = useState({
-    name: MOCK_USER?.name || '',
-    phone: MOCK_USER?.phone || '',
-    birthDate: MOCK_USER?.birthDate || '',
-    email: MOCK_USER?.email || '',
-    city: MOCK_USER?.city || '',
-    nationality: 'مواطن',
-    workPermit: '',
-    education: MOCK_USER?.education || '',
-    experience: MOCK_USER?.experience || '',
-    disabilityType: '',
-  });
+  name: user?.name || '',
+  phone: user?.phone || '',
+  birthDate: user?.birthDate || '',
+  email: user?.email || '',
+  city: user?.city || '',
+  nationality: user?.nationality || 'مواطن',
+  workPermit: user?.workPermit || '',
+  education: user?.education || '',
+  experience: user?.experience || '',
+  disabilityType: user?.disabilityType || '',
+});
 
   const [resumeFile, setResumeFile] = useState(null);
   const [isUploadingResume, setIsUploadingResume] = useState(false);
@@ -177,7 +181,7 @@ const JobApplicationScreen = ({ navigation, route }) => {
     }
   }, []);
 
-  const handleSubmit = useCallback(() => {
+   const handleSubmit = useCallback(async () => {
     if (!form.name || !form.phone || !form.email || !form.city) {
       Alert.alert('بيانات ناقصة', 'يرجى تعبئة الحقول الأساسية.');
       return;
@@ -193,37 +197,60 @@ const JobApplicationScreen = ({ navigation, route }) => {
       return;
     }
 
-    setIsSubmitting(true);
+    try {
+      setIsSubmitting(true);
 
-    const payload = {
-      applicant: {
-        name: form.name,
-        phone: form.phone,
-        birthDate: form.birthDate,
-        email: form.email,
-        city: form.city,
-        nationality: form.nationality,
-        workPermit: form.workPermit,
-        education: form.education,
-        experience: form.experience,
-        disabilityType: form.disabilityType,
-      },
-      resume: resumeFile,
-      job: {
-        id: job?.id || null,
-        title: job?.title || '',
-        company: job?.company || '',
-      },
-      submittedAt: new Date().toISOString(),
-    };
+      const payload = {
+  applicantId: user?.uid || user?.id || null,
+  applicantName: form.name,
+  applicantEmail: form.email,
+  applicantPhone: form.phone,
 
-    console.log('JOB_APPLICATION_PAYLOAD', payload);
+  userRole: user?.role || 'jobSeeker',
 
-    setTimeout(() => {
+  applicant: {
+    name: form.name,
+    phone: form.phone,
+    birthDate: form.birthDate,
+    email: form.email,
+    city: form.city,
+    nationality: form.nationality,
+    workPermit: form.workPermit,
+    education: form.education,
+    experience: form.experience,
+    disabilityType: form.disabilityType,
+  },
+
+  resume: resumeFile,
+
+  jobId: job?.id || null,
+  jobTitle: job?.title || '',
+  orgId: job?.orgId || job?.organizationId || null,
+  orgName: job?.orgName || job?.company || 'منظمة',
+
+  job: {
+    id: job?.id || null,
+    title: job?.title || '',
+    company: job?.orgName || job?.company || '',
+    orgId: job?.orgId || job?.organizationId || null,
+  },
+
+  status: 'pending',
+  submittedAt: serverTimestamp(),
+  createdAt: serverTimestamp(),
+};
+
+      // ✅ M4 DATA/API CONNECTION: حفظ طلب التقديم في firestore
+      await addDoc(collection(db, 'applications'), payload);
+
       setIsSubmitting(false);
       navigation.navigate(SCREEN_NAMES.APPLICATION_SUBMITTED);
-    }, 700);
-  }, [form, resumeFile, job, navigation]);
+    } catch (error) {
+      setIsSubmitting(false);
+      Alert.alert('تعذر حفظ الطلب', 'حدث خطأ أثناء حفظ طلب التقديم.');
+    }
+  }, [form, resumeFile, job, navigation, user]);
+        
 
   return (
     <View style={[styles.container, { backgroundColor: palette.pageBg }]}>
@@ -535,6 +562,7 @@ const JobApplicationScreen = ({ navigation, route }) => {
     </View>
   );
 };
+
 
 const styles = StyleSheet.create({
   container: {

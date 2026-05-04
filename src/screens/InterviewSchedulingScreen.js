@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useContext } from 'react';
 import {
   View,
   Text,
@@ -7,12 +7,22 @@ import {
   StatusBar,
   ScrollView,
   Image,
+  Alert,
 } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
 import CustomInput from '../components/CustomInput';
 import CustomButton from '../components/CustomButton';
 import { SCREEN_NAMES } from '../constants/labels';
 import { useTheme } from '../context/ThemeContext';
+import { AuthContext } from '../context/AuthContext';
+import { db } from '../services/firebase';
+import {
+  collection,
+  addDoc,
+  doc,
+  updateDoc,
+  serverTimestamp,
+} from 'firebase/firestore';
 
 const BellIcon = ({ color = '#1F1655' }) => (
   <View style={styles.bellShapeWrap}>
@@ -39,8 +49,11 @@ const CalendarIcon = ({ color = '#1F1655' }) => (
   </View>
 );
 
-const InterviewSchedulingScreen = ({ navigation }) => {
+const InterviewSchedulingScreen = ({ navigation, route }) => {
   const { colors, darkMode } = useTheme();
+  const { user } = useContext(AuthContext);
+  const { applicant } = route.params || {};
+  const application = applicant?.rawApplication || {};
 
   const [preference, setPreference] = useState('مقابلة عن بعد');
   const [selectedDate, setSelectedDate] = useState('');
@@ -76,11 +89,12 @@ const InterviewSchedulingScreen = ({ navigation }) => {
       
       <View style={styles.headerRow}>
         <TouchableOpacity
-          style={[styles.iconButton, { backgroundColor: palette.iconBtnBg }]}
-          activeOpacity={0.85}
-        >
-          <BellIcon color={palette.iconColor} />
-        </TouchableOpacity>
+  style={[styles.iconButton, { backgroundColor: palette.cardBg }]}
+  onPress={() => navigation.navigate(SCREEN_NAMES.NOTIFICATIONS)}
+  activeOpacity={0.85}
+>
+  <BellIcon color={palette.iconColor} />
+</TouchableOpacity>
 
         <Image
           source={require('../../assets/logo2.png')}
@@ -103,16 +117,17 @@ const InterviewSchedulingScreen = ({ navigation }) => {
       >
         
         <LinearGradient
-          colors={palette.heroGradient}
-          start={{ x: 0, y: 0 }}
-          end={{ x: 1, y: 1 }}
-          style={styles.heroCard}
-        >
-          <Text style={styles.congrats}>مبروك!</Text>
-          <Text style={styles.subtitle}>
-            من بين العديد من المتقدمين تم اختيارك للمقابلة الشخصية
-          </Text>
-        </LinearGradient>
+  colors={palette.heroGradient}
+  start={{ x: 0, y: 0 }}
+  end={{ x: 1, y: 1 }}
+  style={styles.heroCard}
+>
+  <Text style={styles.congrats}>مبروك!</Text>
+
+  <Text style={styles.subtitle}>
+    تم اختيار {applicant?.name || 'المتقدم'} للمقابلة الشخصية
+  </Text>
+</LinearGradient>
 
        
         <View style={[styles.formCard, { backgroundColor: palette.cardBg }]}>
@@ -181,12 +196,59 @@ const InterviewSchedulingScreen = ({ navigation }) => {
             </View>
           </View>
 
-          <CustomButton
-            title="تأكيد"
-            onPress={() => navigation.navigate(SCREEN_NAMES.APPLICATION_SUBMITTED)}
-            style={[styles.confirmBtn, { backgroundColor: palette.primary }]}
-            textStyle={styles.confirmBtnText}
-          />
+        <CustomButton
+  title="تأكيد"
+  onPress={async () => {
+  if (!selectedDate.trim()) {
+    Alert.alert('تاريخ مطلوب', 'يرجى اختيار تاريخ المقابلة.');
+    return;
+  }
+
+  try {
+    const orgId = user?.uid || user?.id || null;
+    const applicationId = applicant?.applicationId || application?.id;
+
+    const payload = {
+      orgId,
+      orgName: user?.orgName || user?.name || '',
+
+      applicationId: applicationId || null,
+      applicantId: application?.applicantId || applicant?.id || null,
+      applicantName: applicant?.name || '',
+      applicantEmail: applicant?.email || '',
+      applicantPhone: applicant?.phone || '',
+
+      jobId: application?.jobId || null,
+      jobTitle: application?.jobTitle || applicant?.jobTitle || '',
+
+      preference,
+      date: selectedDate.trim(),
+
+      status: 'scheduled',
+      createdAt: serverTimestamp(),
+    };
+
+    await addDoc(collection(db, 'interviews'), payload);
+
+    if (applicationId) {
+      await updateDoc(doc(db, 'applications', applicationId), {
+        status: 'interview_scheduled',
+        interviewPreference: preference,
+        interviewDate: selectedDate.trim(),
+        updatedAt: serverTimestamp(),
+      });
+    }
+
+    Alert.alert('تم', 'تم حجز موعد المقابلة بنجاح');
+    navigation.navigate(SCREEN_NAMES.APPLICANTS_LIST);
+  } catch (e) {
+    console.log('INTERVIEW SAVE ERROR:', e);
+    Alert.alert('خطأ', 'تعذر حفظ الموعد.');
+  }
+}}
+  style={[styles.confirmBtn, { backgroundColor: palette.primary }]}
+  textStyle={styles.confirmBtnText}
+/>
         </View>
 
         <View style={{ height: 30 }} />

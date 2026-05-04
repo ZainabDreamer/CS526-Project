@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useContext } from 'react';
 import {
   View,
   Text,
@@ -12,9 +12,20 @@ import DateTimePicker from '@react-native-community/datetimepicker';
 import { useTheme } from '../context/ThemeContext';
 import AppHeader from '../components/AppHeader';
 import CustomButton from '../components/CustomButton';
+import { Alert } from 'react-native';
+import { AuthContext } from '../context/AuthContext';
+import { db } from '../services/firebase';
+import {
+  collection,
+  addDoc,
+  doc,
+  updateDoc,
+  serverTimestamp,
+} from 'firebase/firestore';
 
 const OrgInterviewSchedulingScreen = ({ navigation, route }) => {
   const { colors, darkMode } = useTheme();
+  const { user } = useContext(AuthContext);
 
   const applicant = route?.params?.applicant;
 
@@ -144,13 +155,55 @@ const OrgInterviewSchedulingScreen = ({ navigation, route }) => {
         </View>
 
         <CustomButton
-          title="إرسال الدعوة"
-          onPress={() => {
-            navigation.goBack();
-          }}
-          style={[styles.submitButton, { backgroundColor: palette.primary }]}
-          textStyle={styles.submitButtonText}
-        />
+  title="إرسال الدعوة"
+  onPress={async () => {
+    if (!selectedDate) {
+      Alert.alert('تاريخ مطلوب', 'يرجى اختيار تاريخ المقابلة.');
+      return;
+    }
+
+   const payload = {
+  orgId: user?.uid || user?.id || null,
+  orgName: user?.orgName || user?.name || '',
+
+  applicantId: applicant?.rawApplication?.applicantId || applicant?.applicantId || null,
+  applicationId: applicant?.applicationId || applicant?.id || null,
+
+  applicantName: applicant?.name || 'متقدم',
+  applicantPhone: applicant?.phone || '',
+  applicantEmail: applicant?.email || '',
+
+  jobTitle: applicant?.jobTitle || '',
+  type,
+  date: selectedDate.toISOString(),
+  status: 'scheduled',
+
+  createdAt: serverTimestamp(),
+};
+
+try {
+  await addDoc(collection(db, 'interviews'), payload);
+
+  if (payload.applicationId) {
+    await updateDoc(doc(db, 'applications', payload.applicationId), {
+      status: 'interview_scheduled',
+      interviewType: type,
+      interviewDate: selectedDate.toISOString(),
+      updatedAt: serverTimestamp(),
+    });
+  }
+
+  Alert.alert('تم', 'تم إرسال دعوة المقابلة وحفظ الموعد.', [
+    { text: 'حسنًا', onPress: () => navigation.goBack() },
+  ]);
+} catch (error) {
+  console.log('SAVE INTERVIEW ERROR:', error);
+  Alert.alert('خطأ', 'تعذر حفظ موعد المقابلة.');
+}
+  }}
+  style={[styles.submitButton, { backgroundColor: palette.primary }]}
+  textStyle={styles.submitButtonText}
+/>
       </ScrollView>
     </View>
   );

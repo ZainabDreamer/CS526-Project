@@ -69,12 +69,12 @@ const AppHeader = ({
     if (type === 'bell') {
       return (
         <TouchableOpacity
-          style={[styles.iconButton, { backgroundColor: palette.card }]}
-          onPress={onPress}
-          activeOpacity={0.85}
-        >
-          <BellIcon color={palette.icon} />
-        </TouchableOpacity>
+  
+  onPress={() => navigation.navigate(SCREEN_NAMES.NOTIFICATIONS)}
+  activeOpacity={0.85}
+>
+  <BellIcon color={palette.iconColor} />
+</TouchableOpacity>
       );
     }
 

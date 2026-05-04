@@ -1,4 +1,7 @@
-import React, { useEffect, useRef, useState } from 'react';
+import React, { useEffect, useRef, useState, useContext } from 'react';
+import { AuthContext } from '../context/AuthContext';
+import { db } from '../services/firebase';
+import { collection, addDoc, serverTimestamp } from 'firebase/firestore';
 import {
   View,
   Text,
@@ -43,7 +46,20 @@ const CameraFlipIcon = () => (
 );
 
 const SignLanguageCameraScreen = ({ navigation }) => {
+  const { user } = useContext(AuthContext);
   const theme = useTheme();
+  const saveTranslation = async (text) => {
+  try {
+    await addDoc(collection(db, 'signLanguageTranslations'), {
+      userId: user?.uid || user?.id || null,
+      text,
+      type: 'camera',
+      createdAt: serverTimestamp(),
+    });
+  } catch (e) {
+    console.log('SAVE TRANSLATION ERROR:', e);
+  }
+};
   const darkMode = theme?.darkMode ?? false;
   const colors = theme?.colors ?? {
     background: '#F3F1FA',
@@ -59,6 +75,8 @@ const SignLanguageCameraScreen = ({ navigation }) => {
   const [cameraFacing, setCameraFacing] = useState('front');
   const [isRecording, setIsRecording] = useState(false);
   const [isBusy, setIsBusy] = useState(false);
+  const [capturedPhoto, setCapturedPhoto] = useState(null);
+
   const [translatedText, setTranslatedText] = useState(
     'سيظهر هنا النص الناتج بعد بدء الالتقاط وربط نموذج الترجمة.'
   );
@@ -89,6 +107,7 @@ const SignLanguageCameraScreen = ({ navigation }) => {
 
   useEffect(() => {
     if (!permission) return;
+
     if (!permission.granted) {
       requestPermission();
     }
@@ -98,9 +117,56 @@ const SignLanguageCameraScreen = ({ navigation }) => {
     setCameraFacing((prev) => (prev === 'front' ? 'back' : 'front'));
   };
 
+  // ✅ M4 DEVICE FEATURE: Camera capture + mock sign language analysis
+  const handleCaptureSign = async () => {
+    if (!permission?.granted) {
+      const res = await requestPermission();
+
+      if (!res.granted) {
+        Alert.alert('صلاحية مطلوبة', 'يلزم السماح بالكاميرا لاستخدام هذه الميزة.');
+        return;
+      }
+    }
+
+    if (!cameraRef.current) {
+      Alert.alert('الكاميرا غير جاهزة', 'يرجى المحاولة مرة أخرى.');
+      return;
+    }
+
+    try {
+      setIsBusy(true);
+
+      const photo = await cameraRef.current.takePictureAsync({
+        quality: 0.7,
+        skipProcessing: false,
+      });
+
+      setCapturedPhoto(photo);
+
+      // ✅ M4 MOCK AI: Simulated AI sign language translation
+      setTimeout(() => {
+        setTranslatedText('مرحبًا، أحتاج إلى مساعدة في التقديم على وظيفة.');
+        saveTranslation('مرحبًا، أحتاج إلى مساعدة في التقديم على وظيفة.');
+        setIsBusy(false);
+      }, 1200);
+    } catch (error) {
+      setIsBusy(false);
+      Alert.alert('تعذر الالتقاط', 'حدث خطأ أثناء التقاط صورة الإشارة.');
+    }
+  };
+
+  const handleRetake = () => {
+    setCapturedPhoto(null);
+    setTranslatedText('سيظهر هنا النص الناتج بعد بدء الالتقاط وربط نموذج الترجمة.');
+    saveTranslation('مرحبًا، كيف يمكنني مساعدتك اليوم؟');
+    setIsRecording(false);
+    setIsBusy(false);
+  };
+
   const handleStartStop = async () => {
     if (!permission?.granted) {
       const res = await requestPermission();
+
       if (!res.granted) {
         Alert.alert('صلاحية مطلوبة', 'يلزم السماح بالكاميرا لاستخدام هذه الميزة.');
         return;
@@ -113,10 +179,11 @@ const SignLanguageCameraScreen = ({ navigation }) => {
       return;
     }
 
+    setCapturedPhoto(null);
     setIsRecording(true);
     setIsBusy(true);
 
-    // مكان الربط لاحقًا مع API / model
+    // ✅ M4 MOCK AI: مكان الربط لاحقًا مع API / model
     setTimeout(() => {
       setTranslatedText('مرحبًا، كيف يمكنني مساعدتك اليوم؟');
       setIsBusy(false);
@@ -140,6 +207,7 @@ const SignLanguageCameraScreen = ({ navigation }) => {
       <Text style={[styles.permissionTitle, { color: palette.primary }]}>
         السماح بالكاميرا
       </Text>
+
       <Text style={[styles.permissionText, { color: palette.permissionText }]}>
         نحتاج إلى الكاميرا لالتقاط الإشارات وتحويلها لاحقًا إلى نص أو صوت.
       </Text>
@@ -160,69 +228,83 @@ const SignLanguageCameraScreen = ({ navigation }) => {
     }
 
     return (
-      <View
-        style={[styles.cameraCard, { backgroundColor: palette.cameraCardBg }]}
-      >
-        <CameraView
-          ref={cameraRef}
-          style={styles.camera}
-          facing={cameraFacing}
-          mode="video"
-        >
-          <View style={styles.cameraOverlay}>
-            <View style={styles.cameraTopRow}>
-              <TouchableOpacity
-                style={[
-                  styles.smallGhostButton,
-                  { backgroundColor: palette.overlayButtonBg },
-                ]}
-                onPress={handleToggleFacing}
-                activeOpacity={0.88}
-              >
-                <CameraFlipIcon />
-                <Text
+      <View style={[styles.cameraCard, { backgroundColor: palette.cameraCardBg }]}>
+        {capturedPhoto ? (
+          <View style={styles.previewWrap}>
+            <Image
+              source={{ uri: capturedPhoto.uri }}
+              style={styles.previewImage}
+              resizeMode="cover"
+            />
+
+            <View style={styles.previewOverlay}>
+              <Text style={styles.previewText}>تم التقاط الإشارة بنجاح</Text>
+            </View>
+          </View>
+        ) : (
+          <View style={styles.cameraClip}>
+  <CameraView
+    ref={cameraRef}
+    style={StyleSheet.absoluteFillObject}
+    facing={cameraFacing}
+    mode="picture"
+  >
+    <View style={styles.cameraOverlay}>
+              <View style={styles.cameraTopRow}>
+                <TouchableOpacity
                   style={[
-                    styles.smallGhostButtonText,
-                    { color: palette.overlayText },
+                    styles.smallGhostButton,
+                    { backgroundColor: palette.overlayButtonBg },
+                  ]}
+                  onPress={handleToggleFacing}
+                  activeOpacity={0.88}
+                >
+                  <CameraFlipIcon />
+                  <Text
+                    style={[
+                      styles.smallGhostButtonText,
+                      { color: palette.overlayText },
+                    ]}
+                  >
+                    تبديل
+                  </Text>
+                </TouchableOpacity>
+
+                <View
+                  style={[
+                    styles.liveBadge,
+                    { backgroundColor: palette.overlayButtonBg },
                   ]}
                 >
-                  تبديل
-                </Text>
-              </TouchableOpacity>
+                  <View style={styles.liveDot} />
+                  <Text style={[styles.liveText, { color: palette.overlayText }]}>
+                    مباشر
+                  </Text>
+                </View>
+              </View>
 
               <View
                 style={[
-                  styles.liveBadge,
-                  { backgroundColor: palette.overlayButtonBg },
+                  styles.guideFrame,
+                  { borderColor: palette.guideBorder },
                 ]}
               >
-                <View style={styles.liveDot} />
-                <Text style={[styles.liveText, { color: palette.overlayText }]}>
-                  مباشر
+                <Text
+                  style={[
+                    styles.guideText,
+                    {
+                      backgroundColor: palette.guideTextBg,
+                      color: palette.overlayText,
+                    },
+                  ]}
+                >
+                  ضع اليدين والجسم داخل الإطار لتسهيل الترجمة
                 </Text>
               </View>
             </View>
-
-            <View
-              style={[
-                styles.guideFrame,
-                { borderColor: palette.guideBorder },
-              ]}
-            >
-              <Text
-                style={[
-                  styles.guideText,
-                  {
-                    backgroundColor: palette.guideTextBg,
-                    color: palette.overlayText,
-                  },
-                ]}
-              >
-                ضع اليدين والجسم داخل الإطار لتسهيل الترجمة
-              </Text>
-            </View>
+          </CameraView>
           </View>
-        </CameraView>
+        )}
       </View>
     );
   };
@@ -236,11 +318,12 @@ const SignLanguageCameraScreen = ({ navigation }) => {
 
       <View style={styles.headerRow}>
         <TouchableOpacity
-          style={[styles.iconButton, { backgroundColor: palette.iconButtonBg }]}
-          activeOpacity={0.85}
-        >
-          <BellIcon color={palette.iconColor} />
-        </TouchableOpacity>
+  
+  onPress={() => navigation.navigate(SCREEN_NAMES.NOTIFICATIONS)}
+  activeOpacity={0.85}
+>
+  <BellIcon color={palette.iconColor} />
+</TouchableOpacity>
 
         <Image
           source={require('../../assets/logo2.png')}
@@ -263,15 +346,13 @@ const SignLanguageCameraScreen = ({ navigation }) => {
       >
         <View style={styles.sectionHeader}>
           <Text style={[styles.sectionHint, { color: palette.subText }]}> </Text>
-          <Text style={[styles.sectionTitle, { color: palette.text }]}>
-            ترجمة لغة الإشارة بالكاميرا
-          </Text>
         </View>
 
         <View style={[styles.heroCard, { backgroundColor: palette.cardBg }]}>
           <Text style={[styles.heroTitle, { color: palette.primary }]}>
             ترجمة لغة الإشارة بالكاميرا
           </Text>
+
           <Text style={[styles.heroSubTitle, { color: palette.subText }]}>
             استخدم الكاميرا لالتقاط الإشارات وعرض النص الناتج بشكل مباشر مع إمكانية
             تشغيله صوتيًا.
@@ -318,9 +399,7 @@ const SignLanguageCameraScreen = ({ navigation }) => {
             {isBusy ? (
               <View style={styles.loadingWrap}>
                 <ActivityIndicator size="small" color={palette.primary} />
-                <Text
-                  style={[styles.loadingText, { color: palette.loadingColor }]}
-                >
+                <Text style={[styles.loadingText, { color: palette.loadingColor }]}>
                   جارٍ تحليل الإشارات...
                 </Text>
               </View>
@@ -335,9 +414,7 @@ const SignLanguageCameraScreen = ({ navigation }) => {
             style={[
               styles.primaryAction,
               {
-                backgroundColor: isRecording
-                  ? palette.stopBg
-                  : palette.primary,
+                backgroundColor: isRecording ? palette.stopBg : palette.primary,
               },
             ]}
             onPress={handleStartStop}
@@ -345,6 +422,27 @@ const SignLanguageCameraScreen = ({ navigation }) => {
           >
             <Text style={styles.primaryActionText}>
               {isRecording ? 'إيقاف الالتقاط' : 'بدء الالتقاط'}
+            </Text>
+          </TouchableOpacity>
+
+          <TouchableOpacity
+            style={[
+              styles.captureAction,
+              {
+                backgroundColor: palette.secondaryActionBg,
+                borderColor: palette.softBorder,
+              },
+            ]}
+            onPress={capturedPhoto ? handleRetake : handleCaptureSign}
+            activeOpacity={0.88}
+          >
+            <Text
+              style={[
+                styles.captureActionText,
+                { color: palette.secondaryActionText },
+              ]}
+            >
+              {capturedPhoto ? 'إعادة الالتقاط' : 'التقاط الإشارة'}
             </Text>
           </TouchableOpacity>
         </View>
@@ -355,27 +453,21 @@ const SignLanguageCameraScreen = ({ navigation }) => {
           </Text>
 
           <View style={styles.tipRow}>
-            <View
-              style={[styles.tipDot, { backgroundColor: palette.tipColor }]}
-            />
+            <View style={[styles.tipDot, { backgroundColor: palette.tipColor }]} />
             <Text style={[styles.tipText, { color: palette.text }]}>
               احرص على وجود إضاءة واضحة أثناء الاستخدام.
             </Text>
           </View>
 
           <View style={styles.tipRow}>
-            <View
-              style={[styles.tipDot, { backgroundColor: palette.tipColor }]}
-            />
+            <View style={[styles.tipDot, { backgroundColor: palette.tipColor }]} />
             <Text style={[styles.tipText, { color: palette.text }]}>
               اجعل اليدين واضحتين بالكامل داخل إطار الكاميرا.
             </Text>
           </View>
 
           <View style={styles.tipRow}>
-            <View
-              style={[styles.tipDot, { backgroundColor: palette.tipColor }]}
-            />
+            <View style={[styles.tipDot, { backgroundColor: palette.tipColor }]} />
             <Text style={[styles.tipText, { color: palette.text }]}>
               يمكن لاحقًا ربط الصفحة بموديل ترجمة مباشر أو خدمة خارجية.
             </Text>
@@ -471,13 +563,6 @@ const styles = StyleSheet.create({
     marginBottom: 12,
   },
 
-  sectionTitle: {
-    fontSize: 18,
-    fontWeight: '800',
-    textAlign: 'right',
-    writingDirection: 'rtl',
-  },
-
   sectionHint: {
     fontSize: 13,
     fontWeight: '700',
@@ -522,10 +607,41 @@ const styles = StyleSheet.create({
     elevation: 2,
   },
 
-  camera: {
+  cameraClip: {
+  height: 360,
+  borderRadius: 20,
+  overflow: 'hidden',
+  backgroundColor: '#000',
+},
+
+  previewWrap: {
     height: 360,
     borderRadius: 20,
     overflow: 'hidden',
+    backgroundColor: '#000',
+  },
+
+  previewImage: {
+    width: '100%',
+    height: '100%',
+  },
+
+  previewOverlay: {
+    position: 'absolute',
+    bottom: 14,
+    right: 14,
+    left: 14,
+    backgroundColor: 'rgba(0,0,0,0.35)',
+    borderRadius: 14,
+    paddingVertical: 10,
+    alignItems: 'center',
+  },
+
+  previewText: {
+    color: '#FFFFFF',
+    fontSize: 13,
+    fontWeight: '800',
+    writingDirection: 'rtl',
   },
 
   cameraOverlay: {
@@ -684,6 +800,20 @@ const styles = StyleSheet.create({
   primaryActionText: {
     color: '#FFFFFF',
     fontSize: 15,
+    fontWeight: '800',
+    writingDirection: 'rtl',
+  },
+
+  captureAction: {
+    marginTop: 10,
+    borderRadius: 16,
+    paddingVertical: 13,
+    alignItems: 'center',
+    borderWidth: 1,
+  },
+
+  captureActionText: {
+    fontSize: 14,
     fontWeight: '800',
     writingDirection: 'rtl',
   },

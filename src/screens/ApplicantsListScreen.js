@@ -1,4 +1,6 @@
-import React, { useMemo, useState } from 'react';
+import React, { useMemo, useState, useCallback, useContext } from 'react';
+import { useFocusEffect } from '@react-navigation/native';
+
 import {
   View,
   Text,
@@ -10,16 +12,26 @@ import {
   Modal,
   Pressable,
 } from 'react-native';
+
+import { db } from '../services/firebase';
+import {
+  collection,
+  query,
+  where,
+  getDocs,
+} from 'firebase/firestore';
+
+import { AuthContext } from '../context/AuthContext';
 import { useTheme } from '../context/ThemeContext';
 import AppHeader from '../components/AppHeader';
-import { mockApplicants } from '../data/mockData';
 import { SCREEN_NAMES } from '../constants/labels';
+
 
 const MAIN_TABS = [
   { key: 'dashboard', label: 'الشمولية' },
   { key: 'evaluations', label: 'التقييمات' },
   { key: 'interviews', label: 'المقابلات' },
-  { key: 'addJob', label: 'إضافة فرصة' },
+  { key: 'orgJobs', label: 'فرصي' },
 ];
 
 const SearchIcon = ({ color = '#1F1655' }) => (
@@ -48,10 +60,12 @@ const ProfilePreview = ({ name = '', color = '#1F1655' }) => {
 
 const ApplicantsListScreen = ({ navigation }) => {
   const { colors, darkMode } = useTheme();
+  const { user } = useContext(AuthContext);
 
   const [activeTab, setActiveTab] = useState('incoming');
   const [search, setSearch] = useState('');
   const [selectedApplicant, setSelectedApplicant] = useState(null);
+  const [applicants, setApplicants] = useState([]);
 
   const palette = {
     pageBg: colors.background,
@@ -67,11 +81,63 @@ const ApplicantsListScreen = ({ navigation }) => {
     modalOverlay: 'rgba(0,0,0,0.24)',
   };
 
+  useFocusEffect(
+  useCallback(() => {
+    const loadApplications = async () => {
+  try {
+    const orgId = user?.uid || user?.id;
+    const orgName = user?.orgName || user?.name;
+
+    if (!orgId && !orgName) {
+      setApplicants([]);
+      return;
+    }
+
+    const snapshot = await getDocs(collection(db, 'applications'));
+
+    const filteredApps = snapshot.docs
+      .map((docSnap) => ({
+        id: docSnap.id,
+        ...docSnap.data(),
+      }))
+      .filter((app) =>
+        app.orgId === orgId ||
+        app.orgName === orgName ||
+        app.job?.orgId === orgId ||
+        app.job?.company === orgName
+      );
+
+    const mappedApplications = filteredApps.map((app) => ({
+      id: app.id,
+      applicationId: app.id,
+      name: app.applicant?.name || app.applicantName || 'متقدم جديد',
+      disabilityType: app.applicant?.disabilityType || 'غير محدد',
+      status:
+        app.status === 'interview_scheduled' || app.status === 'accepted'
+          ? 'مجدولة'
+          : 'قادمة',
+      email: app.applicant?.email || app.applicantEmail || '',
+      phone: app.applicant?.phone || app.applicantPhone || '',
+      city: app.applicant?.city || '',
+      jobTitle: app.jobTitle || app.job?.title || '',
+      rawApplication: app,
+    }));
+
+    setApplicants(mappedApplications);
+  } catch (error) {
+    console.log('LOAD APPLICATIONS ERROR:', error);
+    setApplicants([]);
+  }
+};
+    loadApplications();
+  }, [user])
+);
+
   const displayed = useMemo(() => {
     const source =
       activeTab === 'incoming'
-        ? mockApplicants.filter((a) => a.status === 'قادمة')
-        : mockApplicants.filter((a) => a.status === 'مجدولة');
+       ? applicants.filter((a) => a.status === 'قادمة')
+       : applicants.filter((a) => a.status === 'مجدولة');
 
     const q = search.trim();
     if (!q) return source;
@@ -82,7 +148,7 @@ const ApplicantsListScreen = ({ navigation }) => {
       const status = item.status || '';
       return name.includes(q) || type.includes(q) || status.includes(q);
     });
-  }, [activeTab, search]);
+  }, [activeTab, search, applicants]);
 
   const handleMainTab = (key) => {
     if (key === 'dashboard') {
@@ -95,10 +161,10 @@ const ApplicantsListScreen = ({ navigation }) => {
       return;
     }
 
-    if (key === 'addJob') {
-      navigation.navigate(SCREEN_NAMES.ADD_JOB);
-      return;
-    }
+    if (key === 'orgJobs') {
+  navigation.navigate(SCREEN_NAMES.ORG_JOBS);
+  return;
+}
   };
 
   const getApplicantColor = (name) => {

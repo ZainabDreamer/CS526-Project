@@ -1,4 +1,4 @@
-import React, { useMemo, useState } from 'react';
+import React, { useMemo, useState, useCallback, useContext} from 'react';
 import {
   View,
   Text,
@@ -11,8 +11,17 @@ import {
 import { useTheme } from '../context/ThemeContext';
 import AppHeader from '../components/AppHeader';
 import HomeTopBar from '../components/HomeTopBar';
-import { mockInterviews } from '../data/mockData';
 import { SCREEN_NAMES } from '../constants/labels';
+import { useFocusEffect } from '@react-navigation/native';
+import { AuthContext } from '../context/AuthContext';
+import { db } from '../services/firebase';
+import {
+  collection,
+  query,
+  where,
+  getDocs,
+} from 'firebase/firestore';
+
 
 const TABS = [
   { key: 'jobs', label: 'الفرص الوظيفية' },
@@ -38,9 +47,11 @@ const FilterIcon = ({ color = '#8F8B9E' }) => (
 
 const InterviewReminderScreen = ({ navigation }) => {
   const { colors, darkMode } = useTheme();
+  const { user } = useContext(AuthContext);
 
   const [activeTab, setActiveTab] = useState('interviews');
   const [search, setSearch] = useState('');
+  const [interviews, setInterviews] = useState([]);
 
   const palette = {
     bg: colors.background,
@@ -55,6 +66,67 @@ const InterviewReminderScreen = ({ navigation }) => {
     softBg: darkMode ? '#262334' : '#F8F6FC',
   };
 
+  useFocusEffect(
+  useCallback(() => {
+    const loadInterviews = async () => {
+      try {
+        const userId = user?.uid || user?.id;
+
+        if (!userId) {
+          setInterviews([]);
+          return;
+        }
+
+        const q = query(
+         collection(db, 'interviews'),
+         where('applicantId', '==', userId)
+       );
+
+        const snapshot = await getDocs(q);
+
+         const mappedInterviews = snapshot.docs
+  .map((docSnap) => {
+    const item = {
+      id: docSnap.id,
+      ...docSnap.data(),
+    };
+
+    const dateValue = item.date
+      ? new Date(item.date)
+      : null;
+
+    return {
+      id: item.id,
+      title: item.jobTitle || 'مقابلة وظيفية',
+      company: item.orgName || 'جهة توظيف',
+      date: dateValue
+        ? dateValue.toLocaleDateString('ar-SA')
+        : 'تاريخ غير محدد',
+      time: dateValue
+        ? dateValue.toLocaleTimeString('ar-SA', {
+            hour: '2-digit',
+            minute: '2-digit',
+          })
+        : 'وقت غير محدد',
+      location: item.type === 'عن بعد' ? 'عن بعد' : 'مقر الجهة',
+      mode: item.type || 'عن بعد',
+      rawInterview: item,
+    };
+  })
+  .sort((a, b) => new Date(b.rawInterview.date) - new Date(a.rawInterview.date));
+            
+
+        setInterviews(mappedInterviews);
+      } catch (error) {
+        console.log('LOAD FIREBASE INTERVIEWS ERROR:', error);
+        setInterviews([]);
+      }
+    };
+
+    loadInterviews();
+  }, [user])
+);
+
   const handleTab = (key) => {
     if (key === 'jobs') navigation.navigate(SCREEN_NAMES.HOME);
     if (key === 'companies') navigation.navigate(SCREEN_NAMES.COMPANIES);
@@ -62,28 +134,29 @@ const InterviewReminderScreen = ({ navigation }) => {
     if (key === 'map') navigation.navigate(SCREEN_NAMES.MAP);
   };
 
-  const filteredInterviews = useMemo(() => {
-    const q = search.trim();
-    if (!q) return mockInterviews;
+    const filteredInterviews = useMemo(() => {
+  const q = search.trim();
+  if (!q) return interviews;
 
-    return mockInterviews.filter((item) => {
-      const title = item.title || '';
-      const company = item.company || '';
-      const time = item.time || '';
-      const date = item.date || '';
-      const location = item.location || '';
-      const mode = item.mode || '';
+  return interviews.filter((item) => {
+    const title = item.title || '';
+    const company = item.company || '';
+    const time = item.time || '';
+    const date = item.date || '';
+    const location = item.location || '';
+    const mode = item.mode || '';
 
-      return (
-        title.includes(q) ||
-        company.includes(q) ||
-        time.includes(q) ||
-        date.includes(q) ||
-        location.includes(q) ||
-        mode.includes(q)
-      );
-    });
-  }, [search]);
+    return (
+      title.includes(q) ||
+      company.includes(q) ||
+      time.includes(q) ||
+      date.includes(q) ||
+      location.includes(q) ||
+      mode.includes(q)
+    );
+  });
+}, [search, interviews]);
+      
 
   return (
     <View style={[styles.container, { backgroundColor: palette.bg }]}>
@@ -171,7 +244,19 @@ const InterviewReminderScreen = ({ navigation }) => {
                       },
                     ]}
                   >
-                    <Text style={[styles.badgeText, { color: palette.primary }]}>
+                    <Text
+  style={[
+    styles.badgeText,
+    {
+      color:
+        item.mode === 'حضورية'
+          ? '#E57373'
+          : item.mode === 'عن بعد'
+          ? '#4CAF50'
+          : '#FF9800',
+    },
+  ]}
+>
                       {item.mode || 'عن بعد'}
                     </Text>
                   </View>
@@ -203,8 +288,8 @@ const InterviewReminderScreen = ({ navigation }) => {
                     { borderColor: palette.primary },
                   ]}
                   onPress={() =>
-                    navigation.navigate(SCREEN_NAMES.INTERVIEW_DETAILS, {
-                      interview: item,
+                    navigation.navigate(SCREEN_NAMES.JOB_SEEKER_INTERVIEW_DETAILS, {
+                    interview: item,
                     })
                   }
                   activeOpacity={0.85}

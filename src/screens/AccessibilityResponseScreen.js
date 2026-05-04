@@ -1,4 +1,4 @@
-import React, { useMemo, useState } from 'react';
+import React, { useMemo, useState, useContext } from 'react';
 import {
   View,
   Text,
@@ -16,6 +16,14 @@ import {
 } from 'react-native';
 import { useTheme } from '../context/ThemeContext';
 import { SCREEN_NAMES, MOCK_ORG_USER } from '../constants/labels';
+import { AuthContext } from '../context/AuthContext';
+import { db } from '../services/firebase';
+import {
+  doc,
+  updateDoc,
+  serverTimestamp,
+} from 'firebase/firestore';
+
 
 const BackArrowIcon = ({ color = '#4B3F72' }) => (
   <Text style={[styles.backArrowIcon, { color }]}>{'‹'}</Text>
@@ -52,6 +60,7 @@ const BuildingPlaceholderIcon = ({ color = '#8F8B9E' }) => (
 
 const AccessibilityResponseScreen = ({ navigation, route }) => {
   const { colors, darkMode } = useTheme();
+  const { user } = useContext(AuthContext);
   const issue = route?.params?.issue || {};
 
   const [responseText, setResponseText] = useState(issue?.response || '');
@@ -77,13 +86,28 @@ const AccessibilityResponseScreen = ({ navigation, route }) => {
     [colors, darkMode]
   );
 
-  const handleSave = () => {
-    const clean = responseText.trim();
+  const handleSave = async () => {
+  const clean = responseText.trim();
 
-    if (!clean) {
-      Alert.alert('تنبيه', 'يرجى كتابة الرد قبل الحفظ.');
-      return;
-    }
+  if (!clean) {
+    Alert.alert('تنبيه', 'يرجى كتابة الرد قبل الحفظ.');
+    return;
+  }
+
+  try {
+    await updateDoc(doc(db, 'evaluations', issue.id), {
+      orgReply: {
+        text: clean,
+        repliedAt: serverTimestamp(),
+        repliedBy: user?.uid || user?.id || null,
+        repliedByName:
+          user?.orgName ||
+          user?.name ||
+          MOCK_ORG_USER?.name ||
+          'المنظمة',
+      },
+      status: 'resolved',
+    });
 
     Alert.alert('تم الحفظ', 'تم حفظ الرد بنجاح.', [
       {
@@ -91,7 +115,11 @@ const AccessibilityResponseScreen = ({ navigation, route }) => {
         onPress: () => navigation.goBack(),
       },
     ]);
-  };
+  } catch (error) {
+    console.log('SAVE ORG RESPONSE ERROR:', error);
+    Alert.alert('خطأ', 'حدث خطأ أثناء حفظ الرد.');
+  }
+};
 
   return (
     <TouchableWithoutFeedback onPress={Keyboard.dismiss}>
@@ -112,12 +140,13 @@ const AccessibilityResponseScreen = ({ navigation, route }) => {
           >
             
             <View style={styles.headerRow}>
-              <TouchableOpacity
-                style={[styles.iconButton, { backgroundColor: palette.card }]}
-                activeOpacity={0.85}
-              >
-                <BellIcon color={palette.icon} />
-              </TouchableOpacity>
+             <TouchableOpacity
+  
+  onPress={() => navigation.navigate(SCREEN_NAMES.NOTIFICATIONS)}
+  activeOpacity={0.85}
+>
+  <BellIcon color={palette.iconColor} />
+</TouchableOpacity>
 
               <Image
                 source={require('../../assets/logo2.png')}

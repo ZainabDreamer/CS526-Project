@@ -124,6 +124,7 @@ export const LABELS = {
   reminder: 'تذكير !',
   reminderText: 'لديك مقابلة غدًا الساعة 10:30 صباحًا. يرجى التأكد من جاهزيتك',
   goToLocation: 'للوصول الى الموقع',
+  
 
   // Evaluation Screen
   evaluationTitle: 'التقييم',
@@ -246,6 +247,7 @@ export const SCREEN_NAMES = {
   LOGIN: 'Login',
   ACCOUNT_TYPE: 'AccountType',
   FORGOT_PASSWORD: 'ForgotPassword',
+  NOTIFICATIONS: 'Notifications',
 
   SIGNUP_JOB_SEEKER: 'SignUpJobSeeker',
   SIGNUP_JOB_SEEKER_STEP2: 'SignUpJobSeekerStep2',
@@ -265,6 +267,8 @@ export const SCREEN_NAMES = {
   APPLICATION_SUBMITTED: 'ApplicationSubmitted',
 
   INTERVIEW_SCHEDULING: 'InterviewSchedulingScreen',
+  JOB_SEEKER_INTERVIEWS: 'JobSeekerInterviews',
+  JOB_SEEKER_INTERVIEW_DETAILS: 'JobSeekerInterviewDetails',
 
   SIGN_LANGUAGE: 'SignLanguage',
   SIGN_LANGUAGE_HOME: 'SignLanguageHome',
@@ -274,9 +278,12 @@ export const SCREEN_NAMES = {
   ORG_DASHBOARD: 'OrgDashboard',
   APPLICANTS_LIST: 'ApplicantsList',
   ADD_JOB: 'AddJob',
+  ORG_JOBS: 'OrgJobs',
   ACCESSIBILITY_ISSUES: 'AccessibilityIssues',
   ACCESSIBILITY_RESPONSE: 'AccessibilityResponse',
   ORG_INTERVIEW_SCHEDULING: 'OrgInterviewScheduling',
   PROFILE: 'Profile',
   LANGUAGE_SELECT: 'LanguageSelect',
+  COMPANY_DETAILS: 'CompanyDetails',
+  EDIT_COMPANY_PROFILE: 'EditCompanyProfile',
 };

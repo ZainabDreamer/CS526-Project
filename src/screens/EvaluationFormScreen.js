@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useContext, useState } from 'react';
 import {
   View,
   Text,
@@ -15,6 +15,17 @@ import CustomInput from '../components/CustomInput';
 import CustomButton from '../components/CustomButton';
 import { useTheme } from '../context/ThemeContext';
 import AppHeader from '../components/AppHeader';
+import { AuthContext } from '../context/AuthContext';
+import { SCREEN_NAMES } from '../constants/labels';
+import { db } from '../services/firebase';
+import {
+  collection,
+  addDoc,
+  serverTimestamp,
+  doc,
+  updateDoc,
+  increment,
+} from 'firebase/firestore';
 
 const FilterIcon = ({ color = '#8F8B9E' }) => (
   <View style={styles.filterWrap}>
@@ -32,6 +43,8 @@ const ImagePlaceholderIcon = ({ color = '#8F8B9E' }) => (
 );
 
 const EvaluationFormScreen = ({ navigation, route }) => {
+  const { user } = useContext(AuthContext);
+
   const theme = useTheme();
   const darkMode = theme?.darkMode ?? false;
   const colors = theme?.colors ?? {
@@ -57,7 +70,6 @@ const EvaluationFormScreen = ({ navigation, route }) => {
     text: colors.text,
     subText: colors.subText,
     primary: colors.primary,
-    iconMain: darkMode ? '#F5F3FB' : '#1F1655',
     iconMuted: darkMode ? '#B7B2C9' : '#8F8B9E',
     tabBg: darkMode ? '#1F1B2E' : '#FFFFFF',
     tabBorder: darkMode ? '#39344E' : '#ECE7F7',
@@ -74,20 +86,63 @@ const EvaluationFormScreen = ({ navigation, route }) => {
     bannerSubText: 'rgba(255,255,255,0.85)',
   };
 
-  const handleSubmit = () => {
+  const handleSubmit = async () => {
     if (!notes.trim() || !isReady.trim() || !treatment.trim()) {
       Alert.alert('بيانات ناقصة', 'يرجى تعبئة الحقول الأساسية قبل إرسال التقييم.');
       return;
     }
 
-    navigation.goBack();
+    const payload = {
+      userId: user?.uid || user?.id || null,
+      userName: user?.name || '',
+      company: {
+      id: company?.id || company?.orgId || null,
+      name: company?.name || company?.orgName || 'جهة غير محددة',
+      },
+      orgId: company?.orgId || company?.id || null,
+      orgName: company?.name || company?.orgName || 'جهة غير محددة',
+      rating,
+      notes: notes.trim(),
+      isReady: isReady.trim(),
+      treatment: treatment.trim(),
+      suggestions: suggestions.trim(),
+      attachment: file
+        ? {
+            uri: file.uri,
+            fileName: file.fileName || file.name || 'evaluation_attachment.jpg',
+            type: file.type || 'image',
+          }
+        : null,
+      status: 'submitted',
+      createdAt: serverTimestamp(),
+    };
+
+    try {
+  await addDoc(collection(db, 'evaluations'), payload);
+
+  if (payload.orgId) {
+    await updateDoc(doc(db, 'organizations', payload.orgId), {
+      evaluationsCount: increment(1),
+      updatedAt: serverTimestamp(),
+    });
+  }
+
+  Alert.alert('تم إرسال التقييم', 'تم حفظ تقييمك بنجاح.', [
+    {
+      text: 'حسنًا',
+      onPress: () => navigation.goBack(),
+    },
+  ]);
+} catch (error) {
+  Alert.alert('خطأ', 'تعذر حفظ التقييم. يرجى المحاولة مرة أخرى.');
+}
   };
 
   const pickFile = async () => {
     const permission = await ImagePicker.requestMediaLibraryPermissionsAsync();
 
     if (!permission.granted) {
-      Alert.alert('الصلاحية مطلوبة', 'يرجى السماح بالوصول للصور والمستندات.');
+      Alert.alert('الصلاحية مطلوبة', 'يرجى السماح بالوصول للصور.');
       return;
     }
 
@@ -319,9 +374,7 @@ const EvaluationFormScreen = ({ navigation, route }) => {
 };
 
 const styles = StyleSheet.create({
-  container: {
-    flex: 1,
-  },
+  container: { flex: 1 },
 
   filterWrap: {
     width: 16,
@@ -405,11 +458,6 @@ const styles = StyleSheet.create({
     borderRadius: 18,
     padding: 4,
     borderWidth: 1,
-    shadowColor: '#201547',
-    shadowOffset: { width: 0, height: 3 },
-    shadowOpacity: 0.03,
-    shadowRadius: 6,
-    elevation: 1,
   },
 
   tab: {
