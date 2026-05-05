@@ -12,7 +12,6 @@ import {
   Modal,
   Pressable,
 } from 'react-native';
-
 import { db } from '../services/firebase';
 import {
   collection,
@@ -25,8 +24,6 @@ import { AuthContext } from '../context/AuthContext';
 import { useTheme } from '../context/ThemeContext';
 import AppHeader from '../components/AppHeader';
 import { SCREEN_NAMES } from '../constants/labels';
-
-
 const MAIN_TABS = [
   { key: 'dashboard', label: 'الشمولية' },
   { key: 'evaluations', label: 'التقييمات' },
@@ -132,7 +129,6 @@ const ApplicantsListScreen = ({ navigation }) => {
     loadApplications();
   }, [user])
 );
-
   const displayed = useMemo(() => {
     const source =
       activeTab === 'incoming'
@@ -460,7 +456,6 @@ const ApplicantsListScreen = ({ navigation }) => {
 };
 
 export default ApplicantsListScreen;
-
 const styles = StyleSheet.create({
   container: {
     flex: 1,
@@ -482,7 +477,7 @@ const styles = StyleSheet.create({
     textAlign: 'right',
     writingDirection: 'rtl',
     paddingHorizontal: 10,
-    
+  
   },
 
   searchBar: {
@@ -499,7 +494,6 @@ const styles = StyleSheet.create({
     shadowRadius: 8,
     elevation: 2,
   },
-
   searchRightIcon: {
     width: 24,
     alignItems: 'center',
@@ -719,7 +713,6 @@ const styles = StyleSheet.create({
     alignItems: 'flex-end',
     marginLeft: 16,
   },
-
   topIdentityRow: {
     flexDirection: 'row-reverse',
     alignItems: 'center',
@@ -839,7 +832,6 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
   },
-
   closeButtonText: {
     color: '#FFFFFF',
     fontSize: 15,
