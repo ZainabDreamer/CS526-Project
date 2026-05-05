@@ -88,30 +88,28 @@ const OrgJobsScreen = ({ navigation }) => {
 
   // Delete selected job from Firestore
   const handleDelete = (job) => {
-    Alert.alert(
-      'حذف الفرصة',
-      ⁠ هل تريدين حذف فرصة "${job.title || 'فرصة وظيفية'}"؟ ⁠,
-      [
-        { text: 'إلغاء', style: 'cancel' },
-        {
-          text: 'حذف',
-          style: 'destructive',
-          onPress: async () => {
-            try {
-              await deleteDoc(doc(db, 'jobs', job.id));
-
-              setJobs((prev) => prev.filter((item) => item.id !== job.id));
-
-              Alert.alert('تم الحذف', 'تم حذف الفرصة بنجاح.');
-            } catch (error) {
-              console.log('DELETE JOB ERROR:', error);
-              Alert.alert('خطأ', 'تعذر حذف الفرصة.');
-            }
-          },
+  Alert.alert(
+    'حذف الفرصة',
+    `هل تريدين حذف فرصة "${job.title || 'فرصة وظيفية'}"؟`,
+    [
+      { text: 'إلغاء', style: 'cancel' },
+      {
+        text: 'حذف',
+        style: 'destructive',
+        onPress: async () => {
+          try {
+            await deleteDoc(doc(db, 'jobs', job.id));
+            setJobs((prev) => prev.filter((item) => item.id !== job.id));
+            Alert.alert('تم الحذف', 'تم حذف الفرصة بنجاح.');
+          } catch (error) {
+            console.log('DELETE JOB ERROR:', error);
+            Alert.alert('خطأ', 'تعذر حذف الفرصة.');
+          }
         },
-      ]
-    );
-  };
+      },
+    ]
+  );
+};
 
   return (
     <View style={[styles.container, { backgroundColor: palette.bg }]}>
