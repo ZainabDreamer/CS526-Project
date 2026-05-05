@@ -2,13 +2,14 @@ import React, { useEffect, useState } from 'react';
 import {
   View,
   Text,
- StyleSheet,
+  StyleSheet,
   TouchableOpacity,
   StatusBar,
   Image,
   ScrollView,
 } from 'react-native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
+
 import { useTheme } from '../context/ThemeContext';
 
 const LANGS = [
@@ -18,13 +19,16 @@ const LANGS = [
 
 const STORAGE_KEY = 'app_language';
 
+// Custom back arrow icon
 const BackArrowIcon = ({ color = '#1F1655' }) => (
   <Text style={[styles.backArrowIcon, { color }]}>{'‹'}</Text>
 );
 
 const LanguageSelectScreen = ({ navigation }) => {
   const theme = useTheme();
+
   const darkMode = theme?.darkMode ?? false;
+
   const colors = theme?.colors ?? {
     background: '#F3F1FA',
     card: '#FFFFFF',
@@ -33,8 +37,10 @@ const LanguageSelectScreen = ({ navigation }) => {
     primary: '#4B3F72',
   };
 
+  // Selected language state
   const [selected, setSelected] = useState('ar');
 
+  // Screen color palette based on current theme
   const palette = {
     pageBg: colors.background,
     cardBg: colors.card,
@@ -48,13 +54,18 @@ const LanguageSelectScreen = ({ navigation }) => {
     check: '#3B2B93',
   };
 
+  // Load saved language from local storage
   useEffect(() => {
     (async () => {
       const saved = await AsyncStorage.getItem(STORAGE_KEY);
-      if (saved) setSelected(saved);
+
+      if (saved) {
+        setSelected(saved);
+      }
     })();
   }, []);
 
+  // Save selected language and return to previous screen
   const handleSelect = async (code) => {
     setSelected(code);
     await AsyncStorage.setItem(STORAGE_KEY, code);
@@ -68,6 +79,7 @@ const LanguageSelectScreen = ({ navigation }) => {
         backgroundColor={palette.pageBg}
       />
 
+      {/* Header */}
       <View style={styles.headerRow}>
         <TouchableOpacity
           style={[styles.iconButton, { backgroundColor: palette.headerBtnBg }]}
@@ -90,13 +102,16 @@ const LanguageSelectScreen = ({ navigation }) => {
         contentContainerStyle={styles.content}
         showsVerticalScrollIndicator={false}
       >
+        {/* Section title */}
         <View style={styles.sectionHeader}>
           <Text style={[styles.sectionHint, { color: palette.subText }]} />
+
           <Text style={[styles.sectionTitle, { color: palette.text }]}>
             اختر اللغة
           </Text>
         </View>
 
+        {/* Language options */}
         <View style={[styles.card, { backgroundColor: palette.cardBg }]}>
           {LANGS.map((lang, index) => {
             const isActive = selected === lang.code;
@@ -132,12 +147,7 @@ const LanguageSelectScreen = ({ navigation }) => {
                       {lang.label}
                     </Text>
 
-                    <Text
-                      style={[
-                        styles.langDesc,
-                        { color: palette.subText },
-                      ]}
-                    >
+                    <Text style={[styles.langDesc, { color: palette.subText }]}>
                       {lang.desc}
                     </Text>
                   </View>
