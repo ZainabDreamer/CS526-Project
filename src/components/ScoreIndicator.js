@@ -1,6 +1,7 @@
 import React from 'react';
 import { View, Text, StyleSheet } from 'react-native';
 import Svg, { Circle } from 'react-native-svg';
+
 import colors from '../theme/colors';
 
 const ScoreIndicator = ({
@@ -15,11 +16,12 @@ const ScoreIndicator = ({
   const circumference = 2 * Math.PI * radius;
   const progress = ((100 - percentage) / 100) * circumference;
 
-  // Color based on score
+  // Select score color based on percentage
   const getColor = () => {
     if (color) return color;
     if (percentage >= 80) return colors.primary;
     if (percentage >= 60) return colors.scoreOrange;
+
     return '#E53935';
   };
 
@@ -38,6 +40,7 @@ const ScoreIndicator = ({
             strokeWidth={strokeWidth}
             fill="none"
           />
+
           {/* Progress circle */}
           <Circle
             cx={size / 2}
@@ -53,12 +56,24 @@ const ScoreIndicator = ({
             origin={`${size / 2}, ${size / 2}`}
           />
         </Svg>
+
+        {/* Percentage text */}
         <View style={[styles.labelContainer, { width: size, height: size }]}>
-          <Text style={[styles.percentageText, { color: scoreColor, fontSize: size * 0.22 }]}>
+          <Text
+            style={[
+              styles.percentageText,
+              {
+                color: scoreColor,
+                fontSize: size * 0.22,
+              },
+            ]}
+          >
             {percentage}%
           </Text>
         </View>
       </View>
+
+      {/* Optional score label */}
       {showLabel && <Text style={styles.scoreLabel}>{label}</Text>}
     </View>
   );
@@ -68,18 +83,22 @@ const styles = StyleSheet.create({
   container: {
     alignItems: 'center',
   },
+
   svg: {
     position: 'absolute',
   },
+
   labelContainer: {
     position: 'absolute',
     alignItems: 'center',
     justifyContent: 'center',
   },
+
   percentageText: {
     fontWeight: '700',
     textAlign: 'center',
   },
+
   scoreLabel: {
     fontSize: 10,
     color: colors.textSecondary,
