@@ -1,7 +1,22 @@
 import React from 'react';
-import { View, Text, StyleSheet, ScrollView, TouchableOpacity } from 'react-native';
+import {
+  View,
+  Text,
+  StyleSheet,
+  ScrollView,
+  TouchableOpacity,
+} from 'react-native';
+
 import colors from '../theme/colors';
 
+/**
+ * HomeTopBar
+ *
+ * Props:
+ * - tabs: array of tabs { key, label }
+ * - activeTab: current active tab key
+ * - onTabPress: function when tab is pressed
+ */
 const HomeTopBar = ({ tabs, activeTab, onTabPress }) => {
   return (
     <View style={styles.wrapper}>
@@ -9,17 +24,25 @@ const HomeTopBar = ({ tabs, activeTab, onTabPress }) => {
         horizontal
         showsHorizontalScrollIndicator={false}
         contentContainerStyle={styles.container}
-        // RTL: reverse direction
         style={styles.scroll}
       >
+        {/* Reverse tabs for RTL display */}
         {[...tabs].reverse().map((tab) => (
           <TouchableOpacity
             key={tab.key}
-            style={[styles.tab, activeTab === tab.key && styles.activeTab]}
+            style={[
+              styles.tab,
+              activeTab === tab.key && styles.activeTab,
+            ]}
             onPress={() => onTabPress(tab.key)}
             activeOpacity={0.8}
           >
-            <Text style={[styles.tabText, activeTab === tab.key && styles.activeTabText]}>
+            <Text
+              style={[
+                styles.tabText,
+                activeTab === tab.key && styles.activeTabText,
+              ]}
+            >
               {tab.label}
             </Text>
           </TouchableOpacity>
@@ -30,32 +53,45 @@ const HomeTopBar = ({ tabs, activeTab, onTabPress }) => {
 };
 
 const styles = StyleSheet.create({
+  // Wrapper container
   wrapper: {
     backgroundColor: colors.white,
     paddingVertical: 8,
     borderBottomWidth: 0.5,
     borderBottomColor: colors.border,
   },
+
+  // Scroll container
   scroll: {},
+
+  // Tabs container
   container: {
     paddingHorizontal: 16,
     gap: 8,
     flexDirection: 'row',
   },
+
+  // Single tab style
   tab: {
     paddingHorizontal: 16,
     paddingVertical: 8,
     borderRadius: 20,
     backgroundColor: colors.background,
   },
+
+  // Active tab style
   activeTab: {
     backgroundColor: colors.secondary,
   },
+
+  // Tab text
   tabText: {
     fontSize: 13,
     fontWeight: '600',
     color: colors.textSecondary,
   },
+
+  // Active tab text
   activeTabText: {
     color: colors.white,
   },
