@@ -213,7 +213,7 @@ const AppNavigator = () => (
   >
     {/* Auth Flow */}
     <Stack.Screen name={SCREEN_NAMES.PROFILE} component={ProfileScreen} />
-    <Stack.Screen name={SCREEN_NAMES.MY_DATA} component={MyDataScreen} />
+    <Stack.Screen name="MY_DATA_SCREEN_ROUTE" component={MyDataScreen} />
     <Stack.Screen name={SCREEN_NAMES.ABOUT} component={AboutScreen} />
     <Stack.Screen name={SCREEN_NAMES.TERMS} component={TermsScreen} />
     <Stack.Screen name={SCREEN_NAMES.POLICIES} component={PoliciesScreen} />
