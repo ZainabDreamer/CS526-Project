@@ -17,7 +17,7 @@ import * as DocumentPicker from 'expo-document-picker';
 import { AuthContext } from '../context/AuthContext';
 import { db } from '../services/firebase';
 import { doc, setDoc, serverTimestamp } from 'firebase/firestore';
-
+//CITIES
 const CITIES = ['الدمام', 'الخبر', 'الظهران', 'الجبيل', 'الأحساء', 'أخرى'];
 
 const DISTRICTS = {
@@ -28,17 +28,17 @@ const DISTRICTS = {
   الأحساء: ['الهفوف', 'المبرز', 'أخرى'],
   أخرى: ['أخرى'],
 };
-
+//MOWAAMAH_OPTIONS
 const MOWAAMAH_OPTIONS = ['نعم', 'لا', 'قيد الإجراء'];
 
 const BackArrowIcon = ({ color = '#4B3F72' }) => (
   <Text style={[styles.backArrowIcon, { color }]}>{'‹'}</Text>
 );
-
+//SelectArrowIcon
 const SelectArrowIcon = ({ color = '#8A86A3' }) => (
   <Text style={[styles.selectArrowIcon, { color }]}>{'‹'}</Text>
 );
-
+//SelectionModal
 const SelectionModal = ({
   visible,
   title,
@@ -95,7 +95,7 @@ const SelectionModal = ({
     </Modal>
   );
 };
-
+//SignUpOrganizationStep2Screen
 const SignUpOrganizationStep2Screen = ({ navigation, route }) => {
   const { register } = useContext(AuthContext);
   const step1Form = route?.params?.form || {};
@@ -122,21 +122,21 @@ const SignUpOrganizationStep2Screen = ({ navigation, route }) => {
       .replace(/\s{2,}/g, ' ')
       .trimStart();
   };
-
+//sanitizePassword
   const sanitizePassword = (value) => {
     return value.replace(/\s/g, '').slice(0, 30);
   };
-
+//sanitizeEmail
   const sanitizeEmail = (value) => {
     return value.replace(/\s/g, '').slice(0, 100);
   };
-
+//sanitizeScore
   const sanitizeScore = (value) => {
     const cleaned = value.replace(/[^0-9]/g, '').slice(0, 3);
     if (Number(cleaned) > 100) return '100';
     return cleaned;
   };
-
+//handlePickFile
   const handlePickFile = async () => {
     try {
       const result = await DocumentPicker.getDocumentAsync({
@@ -156,16 +156,16 @@ const SignUpOrganizationStep2Screen = ({ navigation, route }) => {
       Alert.alert('خطأ', 'تعذر اختيار الملف');
     }
   };
-
+//handleSelectCity
   const handleSelectCity = (value) => {
     setCity(value);
     setDistrict('');
     setCustomDistrict('');
   };
-
+//handleSubmit
   const handleSubmit = async () => {
     const missing = [];
-
+//cleanEmail
     const cleanEmail = email.trim().toLowerCase();
     const cleanPassword = password.trim();
 
@@ -178,7 +178,7 @@ const SignUpOrganizationStep2Screen = ({ navigation, route }) => {
     if (district === 'أخرى' && !customDistrict.trim()) {
       missing.push('اسم الحي');
     }
-
+//certificateRequired
     const certificateRequired =
       hasMowaamah === 'نعم' || hasMowaamah === 'قيد الإجراء';
 
