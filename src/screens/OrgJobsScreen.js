@@ -12,12 +12,9 @@ import {
 import { useFocusEffect } from '@react-navigation/native';
 import {
   collection,
-  query,
-  where,
   getDocs,
   deleteDoc,
   doc,
-  orderBy,
 } from 'firebase/firestore';
 
 import { useTheme } from '../context/ThemeContext';
@@ -25,7 +22,6 @@ import { AuthContext } from '../context/AuthContext';
 import { SCREEN_NAMES } from '../constants/labels';
 import { db } from '../services/firebase';
 
-// Custom back arrow icon
 const BackArrowIcon = ({ color = '#1F1655' }) => (
   <Text style={{ color, fontSize: 28, fontWeight: '800' }}>{'‹'}</Text>
 );
@@ -34,10 +30,8 @@ const OrgJobsScreen = ({ navigation }) => {
   const { colors, darkMode } = useTheme();
   const { user } = useContext(AuthContext);
 
-  // Organization jobs state
   const [jobs, setJobs] = useState([]);
 
-  // Screen color palette based on current theme
   const palette = {
     bg: colors.background,
     card: colors.card,
@@ -49,67 +43,75 @@ const OrgJobsScreen = ({ navigation }) => {
     softBg: darkMode ? '#262334' : '#F8F6FC',
   };
 
-  // Load jobs created by the current organization
   const loadJobs = async () => {
     try {
-      const orgId = user?.uid || user?.id;
+      const currentOrgId = user?.uid || user?.id;
+      const currentOrgName = user?.orgName || user?.name || user?.fullName;
 
-      if (!orgId) {
+      if (!currentOrgId && !currentOrgName) {
         setJobs([]);
         return;
       }
 
-      const q = query(
-        collection(db, 'jobs'),
-        where('orgId', '==', orgId),
-        orderBy('createdAt', 'desc')
-      );
+      const snapshot = await getDocs(collection(db, 'jobs'));
 
-      const snapshot = await getDocs(q);
+      const data = snapshot.docs
+        .map((docSnap) => ({
+          id: docSnap.id,
+          ...docSnap.data(),
+        }))
+        .filter((job) => {
+          const jobOrgId = job.orgId || job.organizationId || job.companyId;
+          const jobOrgName = job.orgName || job.company || job.companyName;
 
-      const data = snapshot.docs.map((docSnap) => ({
-        id: docSnap.id,
-        ...docSnap.data(),
-      }));
+          return (
+            jobOrgId === currentOrgId ||
+            jobOrgName === currentOrgName
+          );
+        })
+        .sort((a, b) => {
+          const dateA = a.createdAt?.toDate ? a.createdAt.toDate() : new Date(0);
+          const dateB = b.createdAt?.toDate ? b.createdAt.toDate() : new Date(0);
+          return dateB - dateA;
+        });
 
       setJobs(data);
     } catch (error) {
       console.log('LOAD ORG JOBS ERROR:', error);
+      Alert.alert('خطأ', 'تعذر تحميل فرص المنظمة.');
       setJobs([]);
     }
   };
 
-  // Reload jobs whenever the screen is focused
   useFocusEffect(
     useCallback(() => {
       loadJobs();
     }, [user])
   );
 
-  // Delete selected job from Firestore
   const handleDelete = (job) => {
-  Alert.alert(
-    'حذف الفرصة',
-    `هل تريدين حذف فرصة "${job.title || 'فرصة وظيفية'}"؟`,
-    [
-      { text: 'إلغاء', style: 'cancel' },
-      {
-        text: 'حذف',
-        style: 'destructive',
-        onPress: async () => {
-          try {
-            await deleteDoc(doc(db, 'jobs', job.id));
-            setJobs((prev) => prev.filter((item) => item.id !== job.id));
-            Alert.alert('تم الحذف', 'تم حذف الفرصة بنجاح.');
-          } catch (error) {
-            console.log('DELETE JOB ERROR:', error);
-            Alert.alert('خطأ', 'تعذر حذف الفرصة.');
-          }
+    Alert.alert(
+      'حذف الفرصة',
+      `هل تريدين حذف فرصة "${job.title || 'فرصة وظيفية'}"؟`,
+      [
+        { text: 'إلغاء', style: 'cancel' },
+        {
+          text: 'حذف',
+          style: 'destructive',
+          onPress: async () => {
+            try {
+              await deleteDoc(doc(db, 'jobs', job.id));
+              setJobs((prev) => prev.filter((item) => item.id !== job.id));
+              Alert.alert('تم الحذف', 'تم حذف الفرصة بنجاح.');
+            } catch (error) {
+              console.log('DELETE JOB ERROR:', error);
+              Alert.alert('خطأ', 'تعذر حذف الفرصة.');
+            }
+          },
         },
-      },
-    ]
-  );
-};
+      ]
+    );
+  };
 
   return (
     <View style={[styles.container, { backgroundColor: palette.bg }]}>
@@ -118,7 +120,6 @@ const OrgJobsScreen = ({ navigation }) => {
         backgroundColor={palette.bg}
       />
 
-      {/* Header */}
       <View style={styles.headerRow}>
         <TouchableOpacity
           style={[styles.iconButton, { backgroundColor: palette.card }]}
@@ -141,12 +142,14 @@ const OrgJobsScreen = ({ navigation }) => {
         contentContainerStyle={styles.content}
         showsVerticalScrollIndicator={false}
       >
-        {/* Page description */}
+        <Text style={[styles.title, { color: palette.text }]}>
+          إدارة الفرص
+        </Text>
+
         <Text style={[styles.subtitle, { color: palette.subText }]}>
           عرض وتعديل وحذف الفرص التي أضافتها المنظمة
         </Text>
 
-        {/* Add new job */}
         <TouchableOpacity
           style={[styles.addButton, { backgroundColor: palette.primary }]}
           onPress={() => navigation.navigate(SCREEN_NAMES.ADD_JOB)}
@@ -155,7 +158,6 @@ const OrgJobsScreen = ({ navigation }) => {
           <Text style={styles.addButtonText}>إضافة فرصة جديدة</Text>
         </TouchableOpacity>
 
-        {/* Organization jobs list */}
         {jobs.length > 0 ? (
           jobs.map((job) => (
             <View
@@ -173,7 +175,10 @@ const OrgJobsScreen = ({ navigation }) => {
               </Text>
 
               <Text style={[styles.jobMeta, { color: palette.subText }]}>
-                {job.city || job.location?.city || job.workEnv || 'الموقع غير محدد'}
+                {job.city ||
+                  job.location?.city ||
+                  job.workEnv ||
+                  'الموقع غير محدد'}
               </Text>
 
               <Text
