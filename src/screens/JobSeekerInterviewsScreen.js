@@ -36,7 +36,7 @@ const JobSeekerInterviewsScreen = ({ navigation }) => {
     softBg: darkMode ? '#2A273A' : '#F8F6FC',
   };
 
-  // 🔥 تحميل المقابلات من Firebase
+  // Firebase
   useFocusEffect(
     useCallback(() => {
       const load = async () => {
