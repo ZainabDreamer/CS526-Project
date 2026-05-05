@@ -19,10 +19,12 @@ import { AuthContext } from '../context/AuthContext';
 import { db } from '../services/firebase';
 import { collection, addDoc, serverTimestamp } from 'firebase/firestore';
 
+// Back button icon used in the screen header.
 const BackArrowIcon = ({ color = '#1F1655' }) => (
   <Text style={[styles.backArrowIcon, { color }]}>{'‹'}</Text>
 );
 
+// Dropdown arrow icon used in selection fields.
 const ChevronDownIcon = ({ color = '#8A85A0' }) => (
   <View style={styles.chevronWrap}>
     <View style={[styles.chevronLeft, { backgroundColor: color }]} />
@@ -30,6 +32,7 @@ const ChevronDownIcon = ({ color = '#8A85A0' }) => (
   </View>
 );
 
+// Upload icon used for resume file selection.
 const UploadIcon = ({ color = '#8F8B9E' }) => (
   <View style={styles.uploadIconWrap}>
     <View style={[styles.uploadArrowStem, { backgroundColor: color }]} />
@@ -39,6 +42,7 @@ const UploadIcon = ({ color = '#8F8B9E' }) => (
   </View>
 );
 
+// Check icon used to indicate selected or completed items.
 const DotCheckIcon = ({ color = '#36B487', bg = '#E8F7F1' }) => (
   <View style={[styles.dotCheckWrap, { backgroundColor: bg }]}>
     <View style={[styles.dotCheckStem, { backgroundColor: color }]} />
@@ -46,6 +50,7 @@ const DotCheckIcon = ({ color = '#36B487', bg = '#E8F7F1' }) => (
   </View>
 );
 
+// Disability type options shown inside the modal.
 const DISABILITY_OPTIONS = [
   'إعاقة حركية',
   'إعاقة سمعية',
@@ -56,6 +61,7 @@ const DISABILITY_OPTIONS = [
   'أخرى',
 ];
 
+// Reusable local input component for the application form fields.
 const LocalInput = ({
   label,
   value,
@@ -90,29 +96,32 @@ const LocalInput = ({
   );
 };
 
+// JobApplicationScreen allows job seekers to submit an application with personal data and resume.
 const JobApplicationScreen = ({ navigation, route }) => {
   const { colors, darkMode } = useTheme();
   const { user } = useContext(AuthContext);
   const { job } = route.params || {};
 
+  // Form state is initialized from the logged-in user's profile when available.
   const [form, setForm] = useState({
-  name: user?.name || '',
-  phone: user?.phone || '',
-  birthDate: user?.birthDate || '',
-  email: user?.email || '',
-  city: user?.city || '',
-  nationality: user?.nationality || 'مواطن',
-  workPermit: user?.workPermit || '',
-  education: user?.education || '',
-  experience: user?.experience || '',
-  disabilityType: user?.disabilityType || '',
-});
+    name: user?.name || '',
+    phone: user?.phone || '',
+    birthDate: user?.birthDate || '',
+    email: user?.email || '',
+    city: user?.city || '',
+    nationality: user?.nationality || 'مواطن',
+    workPermit: user?.workPermit || '',
+    education: user?.education || '',
+    experience: user?.experience || '',
+    disabilityType: user?.disabilityType || '',
+  });
 
   const [resumeFile, setResumeFile] = useState(null);
   const [isUploadingResume, setIsUploadingResume] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [showDisabilityModal, setShowDisabilityModal] = useState(false);
 
+  // Palette controls colors for light and dark mode.
   const palette = {
     pageBg: colors.background,
     cardBg: colors.card,
@@ -134,10 +143,12 @@ const JobApplicationScreen = ({ navigation, route }) => {
     submitText: '#FFFFFF',
   };
 
+  // Updates a single form field without affecting the other values.
   const update = useCallback((key, val) => {
     setForm((prev) => ({ ...prev, [key]: val }));
   }, []);
 
+  // Opens document picker and stores the selected resume file locally.
   const handlePickResume = useCallback(async () => {
     try {
       setIsUploadingResume(true);
@@ -158,6 +169,7 @@ const JobApplicationScreen = ({ navigation, route }) => {
       }
 
       const file = result.assets?.[0];
+
       if (!file) {
         setIsUploadingResume(false);
         return;
@@ -181,7 +193,8 @@ const JobApplicationScreen = ({ navigation, route }) => {
     }
   }, []);
 
-   const handleSubmit = useCallback(async () => {
+  // Validates the application form and saves the application in Firestore.
+  const handleSubmit = useCallback(async () => {
     if (!form.name || !form.phone || !form.email || !form.city) {
       Alert.alert('بيانات ناقصة', 'يرجى تعبئة الحقول الأساسية.');
       return;
@@ -201,46 +214,46 @@ const JobApplicationScreen = ({ navigation, route }) => {
       setIsSubmitting(true);
 
       const payload = {
-  applicantId: user?.uid || user?.id || null,
-  applicantName: form.name,
-  applicantEmail: form.email,
-  applicantPhone: form.phone,
+        applicantId: user?.uid || user?.id || null,
+        applicantName: form.name,
+        applicantEmail: form.email,
+        applicantPhone: form.phone,
 
-  userRole: user?.role || 'jobSeeker',
+        userRole: user?.role || 'jobSeeker',
 
-  applicant: {
-    name: form.name,
-    phone: form.phone,
-    birthDate: form.birthDate,
-    email: form.email,
-    city: form.city,
-    nationality: form.nationality,
-    workPermit: form.workPermit,
-    education: form.education,
-    experience: form.experience,
-    disabilityType: form.disabilityType,
-  },
+        applicant: {
+          name: form.name,
+          phone: form.phone,
+          birthDate: form.birthDate,
+          email: form.email,
+          city: form.city,
+          nationality: form.nationality,
+          workPermit: form.workPermit,
+          education: form.education,
+          experience: form.experience,
+          disabilityType: form.disabilityType,
+        },
 
-  resume: resumeFile,
+        resume: resumeFile,
 
-  jobId: job?.id || null,
-  jobTitle: job?.title || '',
-  orgId: job?.orgId || job?.organizationId || null,
-  orgName: job?.orgName || job?.company || 'منظمة',
+        jobId: job?.id || null,
+        jobTitle: job?.title || '',
+        orgId: job?.orgId || job?.organizationId || null,
+        orgName: job?.orgName || job?.company || 'منظمة',
 
-  job: {
-    id: job?.id || null,
-    title: job?.title || '',
-    company: job?.orgName || job?.company || '',
-    orgId: job?.orgId || job?.organizationId || null,
-  },
+        job: {
+          id: job?.id || null,
+          title: job?.title || '',
+          company: job?.orgName || job?.company || '',
+          orgId: job?.orgId || job?.organizationId || null,
+        },
 
-  status: 'pending',
-  submittedAt: serverTimestamp(),
-  createdAt: serverTimestamp(),
-};
+        status: 'pending',
+        submittedAt: serverTimestamp(),
+        createdAt: serverTimestamp(),
+      };
 
-      // ✅ M4 DATA/API CONNECTION: حفظ طلب التقديم في firestore
+      // M4 Data/API connection: save the job application in Firestore.
       await addDoc(collection(db, 'applications'), payload);
 
       setIsSubmitting(false);
@@ -250,7 +263,6 @@ const JobApplicationScreen = ({ navigation, route }) => {
       Alert.alert('تعذر حفظ الطلب', 'حدث خطأ أثناء حفظ طلب التقديم.');
     }
   }, [form, resumeFile, job, navigation, user]);
-        
 
   return (
     <View style={[styles.container, { backgroundColor: palette.pageBg }]}>
@@ -562,7 +574,6 @@ const JobApplicationScreen = ({ navigation, route }) => {
     </View>
   );
 };
-
 
 const styles = StyleSheet.create({
   container: {
