@@ -8,6 +8,7 @@ import {
   StatusBar,
   Image,
 } from 'react-native';
+
 import { SCREEN_NAMES } from '../constants/labels';
 
 const AccountTypeScreen = ({ navigation }) => {
@@ -29,15 +30,16 @@ const AccountTypeScreen = ({ navigation }) => {
           />
         </View>
 
-        
+        {/* Page header */}
         <View style={styles.headerSection}>
           <Text style={styles.title}>اختر نوع الحساب</Text>
+
           <Text style={styles.subtitle}>
             اختر نوع الحساب المناسب لك للحصول على تجربة تلبي احتياجاتك في تطبيق شمولية
           </Text>
         </View>
 
-        
+        {/* Job seeker account card */}
         <View style={styles.card}>
           <Text style={styles.cardTitle}>باحث عن عمل</Text>
 
@@ -67,7 +69,7 @@ const AccountTypeScreen = ({ navigation }) => {
           </TouchableOpacity>
         </View>
 
-        
+        {/* Organization account card */}
         <View style={styles.card}>
           <Text style={styles.cardTitle}>مؤسسة</Text>
 
@@ -155,7 +157,6 @@ const styles = StyleSheet.create({
     borderRadius: 22,
     padding: 20,
     marginBottom: 16,
-
     shadowColor: '#000',
     shadowOffset: { width: 0, height: 4 },
     shadowOpacity: 0.05,
