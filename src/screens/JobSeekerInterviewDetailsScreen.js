@@ -196,7 +196,7 @@ const styles = StyleSheet.create({
   textAlign: 'right',
   writingDirection: 'rtl',
   color: '#6E6A8A',
-  marginLeft: 6, // مسافة بينه وبين القيمة
+  marginLeft: 6,
 },
 
   infoValue: {
