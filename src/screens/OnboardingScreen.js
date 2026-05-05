@@ -9,11 +9,13 @@ import {
   StatusBar,
   Image,
 } from 'react-native';
+
 import colors from '../theme/colors';
 import { SCREEN_NAMES } from '../constants/labels';
 
 const { width, height } = Dimensions.get('window');
 
+// Onboarding slides data
 const slides = [
   {
     id: '1',
@@ -45,34 +47,52 @@ const slides = [
 ];
 
 const OnboardingScreen = ({ navigation }) => {
+  // Current slide state
   const [currentIndex, setCurrentIndex] = useState(0);
+
+  // FlatList reference for manual slide navigation
   const flatListRef = useRef(null);
 
   const currentSlide = slides[currentIndex];
 
+  // Move to next slide or go to login when onboarding ends
   const handleNext = () => {
     if (currentIndex < slides.length - 1) {
       const nextIndex = currentIndex + 1;
-      flatListRef.current?.scrollToIndex({ index: nextIndex, animated: true });
+
+      flatListRef.current?.scrollToIndex({
+        index: nextIndex,
+        animated: true,
+      });
+
       setCurrentIndex(nextIndex);
     } else {
       navigation.replace(SCREEN_NAMES.LOGIN);
     }
   };
 
+  // Skip onboarding and go to login
   const handleSkip = () => {
     navigation.replace(SCREEN_NAMES.LOGIN);
   };
 
+  // Render single onboarding slide
   const renderSlide = ({ item }) => (
     <View style={[styles.slide, { width, backgroundColor: item.bg }]}>
       <View style={styles.slideInner}>
         <View style={styles.imageContainer}>
-          <Image source={item.image} style={styles.slideImage} resizeMode="contain" />
+          <Image
+            source={item.image}
+            style={styles.slideImage}
+            resizeMode="contain"
+          />
         </View>
 
         <View style={styles.textBlock}>
-          <Text style={[styles.title, { color: item.accent }]}>{item.title}</Text>
+          <Text style={[styles.title, { color: item.accent }]}>
+            {item.title}
+          </Text>
+
           <Text style={styles.description}>{item.description}</Text>
         </View>
       </View>
@@ -83,8 +103,13 @@ const OnboardingScreen = ({ navigation }) => {
     <View style={[styles.container, { backgroundColor: currentSlide.bg }]}>
       <StatusBar barStyle="dark-content" backgroundColor={currentSlide.bg} />
 
+      {/* Header */}
       <View style={[styles.header, { backgroundColor: currentSlide.bg }]}>
-        <TouchableOpacity style={styles.skipBtn} onPress={handleSkip} activeOpacity={0.85}>
+        <TouchableOpacity
+          style={styles.skipBtn}
+          onPress={handleSkip}
+          activeOpacity={0.85}
+        >
           <Text style={styles.skipText}>تخطي</Text>
         </TouchableOpacity>
 
@@ -97,6 +122,7 @@ const OnboardingScreen = ({ navigation }) => {
         <View style={styles.headerSpacer} />
       </View>
 
+      {/* Slides */}
       <FlatList
         ref={flatListRef}
         data={slides}
@@ -110,6 +136,7 @@ const OnboardingScreen = ({ navigation }) => {
         extraData={currentIndex}
       />
 
+      {/* Footer controls */}
       <View style={[styles.footer, { backgroundColor: currentSlide.bg }]}>
         <View style={styles.dotsContainer}>
           {slides.map((_, index) => (
