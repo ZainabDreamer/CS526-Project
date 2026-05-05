@@ -70,6 +70,7 @@ const UserAvatarIcon = ({ color = '#1F1655' }) => (
   </View>
 );
 
+// Line chart for inclusivity progress
 const InclusivityLineChart = ({
   data = [],
   lineColor = '#3B2B93',
@@ -102,7 +103,6 @@ const InclusivityLineChart = ({
   });
 
   const polylinePoints = points.map((p) => `${p.x},${p.y}`).join(' ');
-
   const horizontalGuides = [25, 50, 75, 100];
 
   return (
@@ -181,170 +181,168 @@ const InclusivityLineChart = ({
 const OrgDashboardScreen = ({ navigation }) => {
   const { colors, darkMode } = useTheme();
   const { user } = useContext(AuthContext);
+
   const [activeTab, setActiveTab] = useState('inclusivity');
   const [period, setPeriod] = useState('month');
   const [search, setSearch] = useState('');
   const [dashboardStats, setDashboardStats] = useState({
-  jobsCount: 0,
-  applicationsCount: 0,
-  evaluationsCount: 0,
-  averageRating: 0,
-});
+    jobsCount: 0,
+    applicationsCount: 0,
+    evaluationsCount: 0,
+    averageRating: 0,
+  });
 
+  // Load organization dashboard data when screen is focused
   useFocusEffect(
-  useCallback(() => {
-    const loadDashboardData = async () => {
-      try {
-        setActiveTab('inclusivity');
+    useCallback(() => {
+      const loadDashboardData = async () => {
+        try {
+          setActiveTab('inclusivity');
 
-        const currentOrgId = user?.uid || user?.id;
-        const currentOrgName = user?.orgName || user?.name;
+          const currentOrgId = user?.uid || user?.id;
 
-        if (!currentOrgId) {
+          if (!currentOrgId) {
+            setDashboardStats({
+              jobsCount: 0,
+              applicationsCount: 0,
+              evaluationsCount: 0,
+              averageRating: 0,
+            });
+            return;
+          }
+
+          const jobsSnapshot = await getDocs(
+            query(collection(db, 'jobs'), where('orgId', '==', currentOrgId))
+          );
+
+          const applicationsSnapshot = await getDocs(
+            query(
+              collection(db, 'applications'),
+              where('orgId', '==', currentOrgId)
+            )
+          );
+
+          const evaluationsSnapshot = await getDocs(
+            query(
+              collection(db, 'evaluations'),
+              where('orgId', '==', currentOrgId)
+            )
+          );
+
+          const jobs = jobsSnapshot.docs.map((docSnap) => ({
+            id: docSnap.id,
+            ...docSnap.data(),
+          }));
+
+          const applications = applicationsSnapshot.docs.map((docSnap) => ({
+            id: docSnap.id,
+            ...docSnap.data(),
+          }));
+
+          const evaluations = evaluationsSnapshot.docs.map((docSnap) => ({
+            id: docSnap.id,
+            ...docSnap.data(),
+          }));
+
+          // Send notification only for new evaluations
+          const storageKey = `seenEvaluations_${currentOrgId}`;
+          const stored = await AsyncStorage.getItem(storageKey);
+          const seenEvaluations = stored ? JSON.parse(stored) : [];
+          const updatedSeen = [...seenEvaluations];
+
+          for (const evaluation of evaluations) {
+            if (!seenEvaluations.includes(evaluation.id)) {
+              await showOnceLocalNotification(
+                `newEvaluation_${currentOrgId}_${evaluation.id}`,
+                'تقييم جديد',
+                'وصل تقييم جديد من باحث عن عمل ويحتاج إلى مراجعة.',
+                { screen: SCREEN_NAMES.ACCESSIBILITY_ISSUES },
+                currentOrgId
+              );
+
+              updatedSeen.push(evaluation.id);
+            }
+          }
+
+          await AsyncStorage.setItem(storageKey, JSON.stringify(updatedSeen));
+
+          const inclusivityScore = Number(user?.inclusivityScore || 0);
+
+          setDashboardStats({
+            jobsCount: jobs.length,
+            applicationsCount: applications.length,
+            evaluationsCount: evaluations.filter((e) => !e.orgReply?.text).length,
+            averageRating: inclusivityScore,
+          });
+        } catch (error) {
+          console.log('LOAD ORG DASHBOARD ERROR:', error);
+
           setDashboardStats({
             jobsCount: 0,
             applicationsCount: 0,
             evaluationsCount: 0,
             averageRating: 0,
           });
-          return;
         }
+      };
 
-        const jobsSnapshot = await getDocs(
-          query(
-            collection(db, 'jobs'),
-            where('orgId', '==', currentOrgId)
-          )
-        );
+      loadDashboardData();
+    }, [user])
+  );
 
-        const applicationsSnapshot = await getDocs(
-          query(
-            collection(db, 'applications'),
-            where('orgId', '==', currentOrgId)
-          )
-        );
-
-        const evaluationsSnapshot = await getDocs(
-          query(
-            collection(db, 'evaluations'),
-            where('orgId', '==', currentOrgId)
-          )
-        );
-
-        const jobs = jobsSnapshot.docs.map((docSnap) => ({
-          id: docSnap.id,
-          ...docSnap.data(),
-        }));
-
-        const applications = applicationsSnapshot.docs.map((docSnap) => ({
-          id: docSnap.id,
-          ...docSnap.data(),
-        }));
-
-        const evaluations = evaluationsSnapshot.docs.map((docSnap) => ({
-          id: docSnap.id,
-          ...docSnap.data(),
-        }));
-
-        const storageKey = `seenEvaluations_${currentOrgId}`;
-const stored = await AsyncStorage.getItem(storageKey);
-const seenEvaluations = stored ? JSON.parse(stored) : [];
-
-const updatedSeen = [...seenEvaluations];
-
-for (const evaluation of evaluations) {
-  if (!seenEvaluations.includes(evaluation.id)) {
-    await showOnceLocalNotification(
-  `newEvaluation_${currentOrgId}_${evaluation.id}`,
-  'تقييم جديد',
-  'وصل تقييم جديد من باحث عن عمل ويحتاج إلى مراجعة.',
-  { screen: SCREEN_NAMES.ACCESSIBILITY_ISSUES },
-  currentOrgId
-);
-
-    updatedSeen.push(evaluation.id);
-  }
-}
-
-await AsyncStorage.setItem(storageKey, JSON.stringify(updatedSeen));
-
-        const inclusivityScore = Number(user?.inclusivityScore || 0);
-
-        setDashboardStats({
-          jobsCount: jobs.length,
-          applicationsCount: applications.length,
-          evaluationsCount: evaluations.filter((e) => !e.orgReply?.text).length,
-          averageRating: inclusivityScore,
-         });
-        setDashboardStats({
-          jobsCount: jobs.length,
-          applicationsCount: applications.length,
-          evaluationsCount: evaluations.filter((e) => !e.orgReply?.text).length,
-          averageRating,
-        });
-      } catch (error) {
-        console.log('LOAD ORG DASHBOARD ERROR:', error);
-
-        setDashboardStats({
-          jobsCount: 0,
-          applicationsCount: 0,
-          evaluationsCount: 0,
-          averageRating: 0,
-        });
-      }
-    };
-
-    loadDashboardData();
-  }, [user])
-);
+  // Generate chart data based on selected period
   const chartData = useMemo(() => {
-  const score = Number(dashboardStats.averageRating || user?.inclusivityScore || 0);
+    const score = Number(
+      dashboardStats.averageRating || user?.inclusivityScore || 0
+    );
 
-  return period === 'month'
-    ? [
-        { label: 'الأسبوع 1', value: Math.max(score - 12, 0) },
-        { label: 'الأسبوع 2', value: Math.max(score - 8, 0) },
-        { label: 'الأسبوع 3', value: Math.max(score - 4, 0) },
-        { label: 'الأسبوع 4', value: score },
-      ]
-    : [
-        { label: 'يناير', value: Math.max(score - 25, 0) },
-        { label: 'مارس', value: Math.max(score - 18, 0) },
-        { label: 'يونيو', value: Math.max(score - 12, 0) },
-        { label: 'سبتمبر', value: Math.max(score - 6, 0) },
-        { label: 'ديسمبر', value: score },
-      ];
-}, [period, dashboardStats.averageRating, user]);
+    return period === 'month'
+      ? [
+          { label: 'الأسبوع 1', value: Math.max(score - 12, 0) },
+          { label: 'الأسبوع 2', value: Math.max(score - 8, 0) },
+          { label: 'الأسبوع 3', value: Math.max(score - 4, 0) },
+          { label: 'الأسبوع 4', value: score },
+        ]
+      : [
+          { label: 'يناير', value: Math.max(score - 25, 0) },
+          { label: 'مارس', value: Math.max(score - 18, 0) },
+          { label: 'يونيو', value: Math.max(score - 12, 0) },
+          { label: 'سبتمبر', value: Math.max(score - 6, 0) },
+          { label: 'ديسمبر', value: score },
+        ];
+  }, [period, dashboardStats.averageRating, user]);
 
   const currentScore = Number(dashboardStats.averageRating) || 0;
   const previousScore = chartData[chartData.length - 2]?.value || 81;
   const improvement = currentScore - previousScore;
 
+  // Screen color palette based on current theme
   const palette = {
-  pageBg: colors.background,
-  cardBg: colors.card,
-  text: colors.text,
-  subText: colors.subText,
-  primary: colors.primary,
-  iconColor: darkMode ? '#F5F3FB' : '#1F1655',
-  searchIcon: darkMode ? '#B7B2C9' : '#8F8B9E',
-  inputPlaceholder: darkMode ? '#A9A5BC' : '#AAA6BE',
-  tabBg: colors.card,
-  tabText: colors.text,
-  activeTabBg: colors.primary,
-  activeTabText: '#FFFFFF',
-  divider: darkMode ? '#312D45' : '#ECE7F7',
-  softBg: darkMode ? '#2A273A' : '#F5F3FB',
-  softText: darkMode ? '#B7B2C9' : '#777777',
-  chartTrack: darkMode ? '#312D45' : '#E8E2F2',
-  statsBg: darkMode ? '#262334' : '#F8F6FC',
-  periodBg: darkMode ? '#2A273A' : '#F2F0F8',
-  periodActiveBg: colors.primary,
-  borderSoft: darkMode ? '#3A3650' : '#EEEAF8',
-  avatarBg: darkMode ? '#2A273A' : '#F0EEF7',
-  success: colors.secondary || '#36B487',
-};
+    pageBg: colors.background,
+    cardBg: colors.card,
+    text: colors.text,
+    subText: colors.subText,
+    primary: colors.primary,
+    iconColor: darkMode ? '#F5F3FB' : '#1F1655',
+    searchIcon: darkMode ? '#B7B2C9' : '#8F8B9E',
+    inputPlaceholder: darkMode ? '#A9A5BC' : '#AAA6BE',
+    tabBg: colors.card,
+    tabText: colors.text,
+    activeTabBg: colors.primary,
+    activeTabText: '#FFFFFF',
+    divider: darkMode ? '#312D45' : '#ECE7F7',
+    softBg: darkMode ? '#2A273A' : '#F5F3FB',
+    softText: darkMode ? '#B7B2C9' : '#777777',
+    chartTrack: darkMode ? '#312D45' : '#E8E2F2',
+    statsBg: darkMode ? '#262334' : '#F8F6FC',
+    periodBg: darkMode ? '#2A273A' : '#F2F0F8',
+    periodActiveBg: colors.primary,
+    borderSoft: darkMode ? '#3A3650' : '#EEEAF8',
+    avatarBg: darkMode ? '#2A273A' : '#F0EEF7',
+    success: colors.secondary || '#36B487',
+  };
 
+  // Handle dashboard tab navigation
   const handleTab = (key) => {
     setActiveTab(key);
 
@@ -359,9 +357,9 @@ await AsyncStorage.setItem(storageKey, JSON.stringify(updatedSeen));
     }
 
     if (key === 'orgJobs') {
-  navigation.navigate(SCREEN_NAMES.ORG_JOBS);
-  return;
-}
+      navigation.navigate(SCREEN_NAMES.ORG_JOBS);
+      return;
+    }
   };
 
   return (
@@ -375,13 +373,19 @@ await AsyncStorage.setItem(storageKey, JSON.stringify(updatedSeen));
         showsVerticalScrollIndicator={false}
         contentContainerStyle={styles.scrollContent}
       >
+        {/* Header */}
         <View style={styles.headerRow}>
           <TouchableOpacity
             style={[styles.iconButton, { backgroundColor: palette.cardBg }]}
             onPress={() => navigation.navigate(SCREEN_NAMES.PROFILE)}
             activeOpacity={0.85}
           >
-            <View style={[styles.avatarMiniCircle, { backgroundColor: palette.avatarBg }]}>
+            <View
+              style={[
+                styles.avatarMiniCircle,
+                { backgroundColor: palette.avatarBg },
+              ]}
+            >
               <UserAvatarIcon color={palette.iconColor} />
             </View>
           </TouchableOpacity>
@@ -392,21 +396,22 @@ await AsyncStorage.setItem(storageKey, JSON.stringify(updatedSeen));
             resizeMode="contain"
           />
 
-         <TouchableOpacity
-  
-  onPress={() => navigation.navigate(SCREEN_NAMES.NOTIFICATIONS)}
-  activeOpacity={0.85}
->
-  <BellIcon color={palette.iconColor} />
-</TouchableOpacity>
+          <TouchableOpacity
+            onPress={() => navigation.navigate(SCREEN_NAMES.NOTIFICATIONS)}
+            activeOpacity={0.85}
+          >
+            <BellIcon color={palette.iconColor} />
+          </TouchableOpacity>
         </View>
 
+        {/* Welcome message */}
         <View style={styles.welcomeBlock}>
           <Text style={[styles.welcome, { color: palette.text }]}>
-           مرحبًا، {user?.orgName || user?.name || MOCK_ORG_USER.name}
+            مرحبًا، {user?.orgName || user?.name || MOCK_ORG_USER.name}
           </Text>
         </View>
 
+        {/* Search bar */}
         <View style={[styles.searchBar, { backgroundColor: palette.cardBg }]}>
           <View style={styles.searchRightIcon}>
             <SearchIcon color={palette.searchIcon} />
@@ -426,6 +431,7 @@ await AsyncStorage.setItem(storageKey, JSON.stringify(updatedSeen));
           </View>
         </View>
 
+        {/* Organization tabs */}
         <View style={styles.tabsContainer}>
           <View style={styles.tabsRow}>
             {ORG_TABS.map((tab) => {
@@ -445,7 +451,11 @@ await AsyncStorage.setItem(storageKey, JSON.stringify(updatedSeen));
                   <Text
                     style={[
                       styles.tabText,
-                      { color: isActive ? palette.activeTabText : palette.tabText },
+                      {
+                        color: isActive
+                          ? palette.activeTabText
+                          : palette.tabText,
+                      },
                     ]}
                     numberOfLines={1}
                   >
@@ -457,6 +467,7 @@ await AsyncStorage.setItem(storageKey, JSON.stringify(updatedSeen));
           </View>
         </View>
 
+        {/* Announcement card */}
         <LinearGradient
           colors={['#4B3F72', '#40357E', '#312767']}
           start={{ x: 0, y: 0 }}
@@ -470,8 +481,10 @@ await AsyncStorage.setItem(storageKey, JSON.stringify(updatedSeen));
 
             <View style={styles.announcementTextBlock}>
               <Text style={styles.announcementTitle}>
-                ارتفاع {improvement > 0 ? `+${improvement}%` : `${improvement}%`} في آخر فترة
+                ارتفاع {improvement > 0 ? `+${improvement}%` : `${improvement}%`}{' '}
+                في آخر فترة
               </Text>
+
               <Text style={styles.announcementSubtitle}>
                 متابعة مباشرة لأداء الشمولية داخل المنظمة
               </Text>
@@ -479,22 +492,35 @@ await AsyncStorage.setItem(storageKey, JSON.stringify(updatedSeen));
           </View>
         </LinearGradient>
 
+        {/* Score card */}
         <View style={[styles.scoreCard, { backgroundColor: palette.cardBg }]}>
           <View style={styles.scoreTopRow}>
             <View style={styles.scoreTextBlock}>
               <Text style={[styles.scoreMainTitle, { color: palette.primary }]}>
                 شمولية الشركة
               </Text>
+
               <Text style={[styles.scoreSubTitle, { color: palette.subText }]}>
-                النسبة الحالية للشمولية مع مقارنة التطور خلال {period === 'month' ? 'الشهر' : 'السنة'}
+                النسبة الحالية للشمولية مع مقارنة التطور خلال{' '}
+                {period === 'month' ? 'الشهر' : 'السنة'}
               </Text>
             </View>
 
-            <ScoreIndicator percentage={currentScore} size={90} showLabel={false} />
+            <ScoreIndicator
+              percentage={currentScore}
+              size={90}
+              showLabel={false}
+            />
           </View>
 
+          {/* Period switch */}
           <View style={styles.periodOuter}>
-            <View style={[styles.periodRow, { backgroundColor: palette.periodBg }]}>
+            <View
+              style={[
+                styles.periodRow,
+                { backgroundColor: palette.periodBg },
+              ]}
+            >
               <TouchableOpacity
                 style={[
                   styles.periodBtn,
@@ -541,11 +567,13 @@ await AsyncStorage.setItem(storageKey, JSON.stringify(updatedSeen));
             </View>
           </View>
 
+          {/* Chart section */}
           <View style={[styles.chartCard, { backgroundColor: palette.softBg }]}>
             <View style={styles.chartHeaderRow}>
               <Text style={[styles.chartExplain, { color: palette.subText }]}>
                 يوضح الرسم تغير نسبة الشمولية عبر الزمن بشكل تدريجي
               </Text>
+
               <Text style={[styles.chartTitle, { color: palette.text }]}>
                 تطور شمولية الشركة
               </Text>
@@ -560,16 +588,21 @@ await AsyncStorage.setItem(storageKey, JSON.stringify(updatedSeen));
             />
           </View>
 
+          {/* Stats boxes */}
           <View style={styles.statsRow}>
             <TouchableOpacity
               activeOpacity={0.88}
               style={[styles.statBox, { backgroundColor: palette.statsBg }]}
               onPress={() => navigation.navigate(SCREEN_NAMES.ACCESSIBILITY_ISSUES)}
             >
-              <Text style={[styles.statValue, { color: palette.text }]}>{dashboardStats.averageRating}</Text>
-              <Text style={[styles.statLabel, { color: palette.softText }]}>
-                نسبة الشمولية 
+              <Text style={[styles.statValue, { color: palette.text }]}>
+                {dashboardStats.averageRating}
               </Text>
+
+              <Text style={[styles.statLabel, { color: palette.softText }]}>
+                نسبة الشمولية
+              </Text>
+
               <Text style={[styles.statHint, { color: palette.success }]}>
                 اضغط لعرض التفاصيل
               </Text>
@@ -580,10 +613,14 @@ await AsyncStorage.setItem(storageKey, JSON.stringify(updatedSeen));
               style={[styles.statBox, { backgroundColor: palette.statsBg }]}
               onPress={() => navigation.navigate(SCREEN_NAMES.ACCESSIBILITY_ISSUES)}
             >
-              <Text style={[styles.statValue, { color: palette.text }]}>{dashboardStats.evaluationsCount}</Text>
+              <Text style={[styles.statValue, { color: palette.text }]}>
+                {dashboardStats.evaluationsCount}
+              </Text>
+
               <Text style={[styles.statLabel, { color: palette.softText }]}>
                 التقييمات الجديدة
               </Text>
+
               <Text style={[styles.statHint, { color: palette.success }]}>
                 اضغط لعرض التقييمات
               </Text>
