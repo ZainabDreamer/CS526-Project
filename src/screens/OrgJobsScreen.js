@@ -10,10 +10,6 @@ import {
   Image,
 } from 'react-native';
 import { useFocusEffect } from '@react-navigation/native';
-import { useTheme } from '../context/ThemeContext';
-import { AuthContext } from '../context/AuthContext';
-import { SCREEN_NAMES } from '../constants/labels';
-import { db } from '../services/firebase';
 import {
   collection,
   query,
@@ -24,6 +20,12 @@ import {
   orderBy,
 } from 'firebase/firestore';
 
+import { useTheme } from '../context/ThemeContext';
+import { AuthContext } from '../context/AuthContext';
+import { SCREEN_NAMES } from '../constants/labels';
+import { db } from '../services/firebase';
+
+// Custom back arrow icon
 const BackArrowIcon = ({ color = '#1F1655' }) => (
   <Text style={{ color, fontSize: 28, fontWeight: '800' }}>{'‹'}</Text>
 );
@@ -31,8 +33,11 @@ const BackArrowIcon = ({ color = '#1F1655' }) => (
 const OrgJobsScreen = ({ navigation }) => {
   const { colors, darkMode } = useTheme();
   const { user } = useContext(AuthContext);
+
+  // Organization jobs state
   const [jobs, setJobs] = useState([]);
 
+  // Screen color palette based on current theme
   const palette = {
     bg: colors.background,
     card: colors.card,
@@ -44,6 +49,7 @@ const OrgJobsScreen = ({ navigation }) => {
     softBg: darkMode ? '#262334' : '#F8F6FC',
   };
 
+  // Load jobs created by the current organization
   const loadJobs = async () => {
     try {
       const orgId = user?.uid || user?.id;
@@ -73,16 +79,18 @@ const OrgJobsScreen = ({ navigation }) => {
     }
   };
 
+  // Reload jobs whenever the screen is focused
   useFocusEffect(
     useCallback(() => {
       loadJobs();
     }, [user])
   );
 
+  // Delete selected job from Firestore
   const handleDelete = (job) => {
     Alert.alert(
       'حذف الفرصة',
-      `هل تريدين حذف فرصة "${job.title || 'فرصة وظيفية'}"؟`,
+      ⁠ هل تريدين حذف فرصة "${job.title || 'فرصة وظيفية'}"؟ ⁠,
       [
         { text: 'إلغاء', style: 'cancel' },
         {
@@ -91,7 +99,9 @@ const OrgJobsScreen = ({ navigation }) => {
           onPress: async () => {
             try {
               await deleteDoc(doc(db, 'jobs', job.id));
+
               setJobs((prev) => prev.filter((item) => item.id !== job.id));
+
               Alert.alert('تم الحذف', 'تم حذف الفرصة بنجاح.');
             } catch (error) {
               console.log('DELETE JOB ERROR:', error);
@@ -110,6 +120,7 @@ const OrgJobsScreen = ({ navigation }) => {
         backgroundColor={palette.bg}
       />
 
+      {/* Header */}
       <View style={styles.headerRow}>
         <TouchableOpacity
           style={[styles.iconButton, { backgroundColor: palette.card }]}
@@ -128,12 +139,16 @@ const OrgJobsScreen = ({ navigation }) => {
         <View style={styles.headerSpacer} />
       </View>
 
-      <ScrollView contentContainerStyle={styles.content} showsVerticalScrollIndicator={false}>
-
+      <ScrollView
+        contentContainerStyle={styles.content}
+        showsVerticalScrollIndicator={false}
+      >
+        {/* Page description */}
         <Text style={[styles.subtitle, { color: palette.subText }]}>
           عرض وتعديل وحذف الفرص التي أضافتها المنظمة
         </Text>
 
+        {/* Add new job */}
         <TouchableOpacity
           style={[styles.addButton, { backgroundColor: palette.primary }]}
           onPress={() => navigation.navigate(SCREEN_NAMES.ADD_JOB)}
@@ -142,6 +157,7 @@ const OrgJobsScreen = ({ navigation }) => {
           <Text style={styles.addButtonText}>إضافة فرصة جديدة</Text>
         </TouchableOpacity>
 
+        {/* Organization jobs list */}
         {jobs.length > 0 ? (
           jobs.map((job) => (
             <View
@@ -162,7 +178,10 @@ const OrgJobsScreen = ({ navigation }) => {
                 {job.city || job.location?.city || job.workEnv || 'الموقع غير محدد'}
               </Text>
 
-              <Text style={[styles.jobDesc, { color: palette.subText }]} numberOfLines={2}>
+              <Text
+                style={[styles.jobDesc, { color: palette.subText }]}
+                numberOfLines={2}
+              >
                 {job.description || 'لا يوجد وصف مضاف لهذه الفرصة.'}
               </Text>
 
@@ -191,7 +210,12 @@ const OrgJobsScreen = ({ navigation }) => {
                   onPress={() => handleDelete(job)}
                   activeOpacity={0.85}
                 >
-                  <Text style={[styles.deleteButtonText, { color: palette.danger }]}>
+                  <Text
+                    style={[
+                      styles.deleteButtonText,
+                      { color: palette.danger },
+                    ]}
+                  >
                     حذف
                   </Text>
                 </TouchableOpacity>
@@ -211,6 +235,7 @@ const OrgJobsScreen = ({ navigation }) => {
             <Text style={[styles.emptyTitle, { color: palette.text }]}>
               لا توجد فرص مضافة
             </Text>
+
             <Text style={[styles.emptyText, { color: palette.subText }]}>
               عند إضافة فرصة وظيفية ستظهر هنا لإدارتها.
             </Text>
