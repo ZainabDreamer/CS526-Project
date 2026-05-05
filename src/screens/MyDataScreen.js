@@ -11,23 +11,29 @@ import {
   Alert,
 } from 'react-native';
 import * as ImagePicker from 'expo-image-picker';
-import { useTheme } from '../context/ThemeContext';
-import { AuthContext } from '../context/AuthContext';
-import { db, storage } from '../services/firebase';
 import { doc, updateDoc, serverTimestamp } from 'firebase/firestore';
 import { ref, uploadBytes, getDownloadURL } from 'firebase/storage';
 
+import { useTheme } from '../context/ThemeContext';
+import { AuthContext } from '../context/AuthContext';
+import { db, storage } from '../services/firebase';
+
+// Custom back arrow icon
 const BackArrowIcon = ({ color = '#1F1655' }) => (
   <Text style={[styles.backArrowIcon, { color }]}>{'‹'}</Text>
 );
 
+// Custom edit icon
 const EditIcon = ({ color = '#4B3F72' }) => (
   <View style={styles.editIconWrap}>
     <View style={[styles.editLine, { backgroundColor: color }]} />
     <View
       style={[
         styles.editNib,
-        { borderTopColor: color, borderRightColor: color },
+        {
+          borderTopColor: color,
+          borderRightColor: color,
+        },
       ]}
     />
   </View>
@@ -38,6 +44,7 @@ const MyDataScreen = ({ navigation }) => {
   const theme = useTheme();
 
   const darkMode = theme?.darkMode ?? false;
+
   const colors = theme?.colors ?? {
     background: '#F3F1FA',
     card: '#FFFFFF',
@@ -46,6 +53,7 @@ const MyDataScreen = ({ navigation }) => {
     primary: '#4B3F72',
   };
 
+  // Screen color palette based on current theme
   const palette = {
     pageBg: colors.background,
     cardBg: colors.card,
@@ -59,6 +67,7 @@ const MyDataScreen = ({ navigation }) => {
     label: darkMode ? '#C6C0D8' : '#7B7696',
   };
 
+  // Initial user data displayed in the form
   const initialData = {
     fullName:
       user?.name ||
@@ -77,14 +86,17 @@ const MyDataScreen = ({ navigation }) => {
     imageUri: user?.imageUri || null,
   };
 
+  // Screen states
   const [isEditing, setIsEditing] = useState(false);
   const [userData, setUserData] = useState(initialData);
   const [isSaving, setIsSaving] = useState(false);
 
+  // Update specific field in user data
   const updateField = (key, value) => {
     setUserData((prev) => ({ ...prev, [key]: value }));
   };
 
+  // Upload selected profile image to Firebase Storage
   const uploadImageToFirebase = async (uri, uid) => {
     const response = await fetch(uri);
     const blob = await response.blob();
@@ -98,10 +110,10 @@ const MyDataScreen = ({ navigation }) => {
     return downloadURL;
   };
 
+  // Pick profile image from device gallery
   const pickImage = async () => {
     try {
-      const permission =
-        await ImagePicker.requestMediaLibraryPermissionsAsync();
+      const permission = await ImagePicker.requestMediaLibraryPermissionsAsync();
 
       if (!permission.granted) {
         Alert.alert('الصلاحية مطلوبة', 'يرجى السماح بالوصول للصور.');
@@ -125,6 +137,7 @@ const MyDataScreen = ({ navigation }) => {
     }
   };
 
+  // Save updated profile data to Firestore
   const saveProfile = async () => {
     const uid = user?.uid || user?.id;
 
@@ -157,6 +170,7 @@ const MyDataScreen = ({ navigation }) => {
 
       await updateDoc(doc(db, 'users', uid), payload);
 
+      // Update organization document if the current user is an organization
       if (user?.role === 'organization') {
         await updateDoc(doc(db, 'organizations', uid), {
           name: userData.fullName.trim(),
@@ -183,6 +197,7 @@ const MyDataScreen = ({ navigation }) => {
     }
   };
 
+  // Editable profile fields
   const fields = useMemo(
     () => [
       { key: 'fullName', label: 'الاسم الكامل' },
@@ -202,6 +217,7 @@ const MyDataScreen = ({ navigation }) => {
         backgroundColor={palette.pageBg}
       />
 
+      {/* Header */}
       <View style={styles.headerRow}>
         <TouchableOpacity
           style={[styles.iconButton, { backgroundColor: palette.headerBtnBg }]}
@@ -224,13 +240,16 @@ const MyDataScreen = ({ navigation }) => {
         contentContainerStyle={styles.content}
         showsVerticalScrollIndicator={false}
       >
+        {/* Section title */}
         <View style={styles.sectionHeader}>
           <View />
+
           <Text style={[styles.sectionTitle, { color: palette.text }]}>
             بياناتي
           </Text>
         </View>
 
+        {/* Profile card */}
         <View style={[styles.card, { backgroundColor: palette.cardBg }]}>
           <View style={styles.cardTopRow}>
             <View style={styles.avatarBlock}>
@@ -258,6 +277,7 @@ const MyDataScreen = ({ navigation }) => {
                 <Text style={[styles.avatarName, { color: palette.text }]}>
                   {userData.fullName}
                 </Text>
+
                 <Text style={[styles.avatarHint, { color: palette.subText }]}>
                   اضغطي على الصورة لتغييرها
                 </Text>
@@ -271,12 +291,14 @@ const MyDataScreen = ({ navigation }) => {
               disabled={isSaving}
             >
               <EditIcon color={palette.primary} />
+
               <Text style={[styles.editButtonText, { color: palette.primary }]}>
                 {isSaving ? 'جارٍ الحفظ...' : isEditing ? 'حفظ' : 'تعديل'}
               </Text>
             </TouchableOpacity>
           </View>
 
+          {/* User data fields */}
           {fields.map((field) => (
             <View key={field.key} style={styles.fieldBlock}>
               <Text style={[styles.fieldLabel, { color: palette.label }]}>
@@ -304,6 +326,7 @@ const MyDataScreen = ({ navigation }) => {
             </View>
           ))}
 
+          {/* User bio */}
           <View style={styles.fieldBlock}>
             <Text style={[styles.fieldLabel, { color: palette.label }]}>
               نبذة مختصرة
@@ -340,7 +363,9 @@ const MyDataScreen = ({ navigation }) => {
 export default MyDataScreen;
 
 const styles = StyleSheet.create({
-  container: { flex: 1 },
+  container: {
+    flex: 1,
+  },
 
   headerRow: {
     flexDirection: 'row',
