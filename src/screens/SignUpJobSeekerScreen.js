@@ -19,7 +19,7 @@ import { SCREEN_NAMES } from '../constants/labels';
 const CITY_OPTIONS = ['الدمام', 'الخبر', 'الظهران', 'الجبيل', 'القطيف', 'الأحساء', 'أخرى'];
 const EDUCATION_OPTIONS = ['ثانوي', 'دبلوم', 'بكالوريوس', 'ماجستير', 'دكتوراه', 'أخرى'];
 
-
+//BackArrowIcon
 const BackArrowIcon = ({ color = '#4B3F72' }) => (
   <Text style={[styles.backArrowIcon, { color }]}>{'‹'}</Text>
 );
@@ -27,7 +27,7 @@ const BackArrowIcon = ({ color = '#4B3F72' }) => (
 const SelectArrowIcon = ({ color = '#8A86A3' }) => (
   <Text style={[styles.selectArrowIcon, { color }]}>{'‹'}</Text>
 );
-
+//SelectionModal
 const SelectionModal = ({
   visible,
   title,
@@ -80,7 +80,7 @@ const SelectionModal = ({
     </Modal>
   );
 };
-
+//SignUpJobSeekerScreen
 const SignUpJobSeekerScreen = ({ navigation }) => {
   const [form, setForm] = useState({
     name: '',
@@ -507,7 +507,7 @@ const SignUpJobSeekerScreen = ({ navigation }) => {
   );
 };
 
-
+//styles
 const styles = StyleSheet.create({
   container: {
     flex: 1,
