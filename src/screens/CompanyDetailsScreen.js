@@ -26,7 +26,7 @@ const CompanyDetailsScreen = ({ route, navigation }) => {
     <View style={[styles.container, { backgroundColor: colors.background }]}>
       <StatusBar barStyle={darkMode ? 'light-content' : 'dark-content'} />
 
-      {/* HEADER مثل باقي الصفحات */}
+      {/* HEADER*/}
       <View style={styles.headerRow}>
         <TouchableOpacity
           style={[styles.iconButton, { backgroundColor: colors.card }]}
@@ -46,7 +46,6 @@ const CompanyDetailsScreen = ({ route, navigation }) => {
         showsVerticalScrollIndicator={false}
         contentContainerStyle={styles.content}
       >
-        {/* الكارد الرئيسي */}
         <View style={[styles.heroCard, { backgroundColor: colors.card }]}>
           <Text style={[styles.heroTitle, { color: colors.text }]}>
             {company.name || 'شركة غير محددة'}
@@ -60,7 +59,6 @@ const CompanyDetailsScreen = ({ route, navigation }) => {
             {company.hasCertificate ? 'حاصلة على شهادة' : 'لا توجد شهادة'}
           </Text>
 
-          {/* الدائرة */}
           <View style={styles.rateWrap}>
             <View
               style={[
@@ -85,7 +83,6 @@ const CompanyDetailsScreen = ({ route, navigation }) => {
           </View>
         </View>
 
-        {/* الإحصائيات */}
         <View style={styles.statsRow}>
           <View style={[styles.statCard, { backgroundColor: colors.card }]}>
             <Text style={styles.statNumber}>{jobs.length}</Text>
@@ -100,7 +97,6 @@ const CompanyDetailsScreen = ({ route, navigation }) => {
           </View>
         </View>
 
-        {/* نبذة */}
         <View style={[styles.optionCard, { backgroundColor: colors.card }]}>
           <View style={styles.optionTextWrap}>
             <Text style={styles.optionTitle}>نبذة عن الشركة</Text>
@@ -110,7 +106,6 @@ const CompanyDetailsScreen = ({ route, navigation }) => {
           </View>
         </View>
 
-        {/* معلومات الإتاحة */}
         <View style={[styles.optionCard, { backgroundColor: colors.card }]}>
           <View style={styles.optionTextWrap}>
             <Text style={styles.optionTitle}>معلومات الإتاحة</Text>
@@ -129,7 +124,6 @@ const CompanyDetailsScreen = ({ route, navigation }) => {
           </View>
         </View>
 
-        {/* الفرص */}
         <View style={styles.sectionHeader}>
           <Text style={[styles.sectionTitle, { color: colors.text }]}>
             الفرص الوظيفية
@@ -154,7 +148,6 @@ const CompanyDetailsScreen = ({ route, navigation }) => {
               </Text>
             </View>
 
-            {/* سهم موحد */}
             <Text style={styles.arrow}>‹</Text>
           </TouchableOpacity>
         ))}
