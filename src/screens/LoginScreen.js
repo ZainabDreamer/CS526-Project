@@ -20,11 +20,13 @@ import {
 } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
 import { Ionicons } from '@expo/vector-icons';
+
 import { SCREEN_NAMES } from '../constants/labels';
 import { AuthContext } from '../context/AuthContext';
 
 const { height } = Dimensions.get('window');
 
+// Custom checkbox component
 const CheckBox = ({ checked, onPress }) => (
   <TouchableOpacity
     style={[styles.checkbox, checked && styles.checkboxChecked]}
@@ -35,17 +37,30 @@ const CheckBox = ({ checked, onPress }) => (
   </TouchableOpacity>
 );
 
+// Account type radio option
 const RadioOption = ({ label, selected, onPress }) => (
-  <TouchableOpacity style={styles.radioRow} onPress={onPress} activeOpacity={0.85}>
-    <Text style={[styles.radioLabel, selected && styles.radioLabelActive]}>{label}</Text>
+  <TouchableOpacity
+    style={styles.radioRow}
+    onPress={onPress}
+    activeOpacity={0.85}
+  >
+    <Text style={[styles.radioLabel, selected && styles.radioLabelActive]}>
+      {label}
+    </Text>
+
     <View style={[styles.radioOuter, selected && styles.radioOuterActive]}>
       {selected ? <View style={styles.radioInner} /> : null}
     </View>
   </TouchableOpacity>
 );
 
+// Password visibility toggle
 const PasswordToggle = ({ visible, onPress }) => (
-  <TouchableOpacity onPress={onPress} activeOpacity={0.85} style={styles.passwordToggle}>
+  <TouchableOpacity
+    onPress={onPress}
+    activeOpacity={0.85}
+    style={styles.passwordToggle}
+  >
     <Ionicons
       name={visible ? 'eye-off-outline' : 'eye-outline'}
       size={20}
@@ -55,9 +70,10 @@ const PasswordToggle = ({ visible, onPress }) => (
 );
 
 const LoginScreen = ({ navigation }) => {
-  // ✅ M4 AUTH CONNECTION: ربط صفحة تسجيل الدخول مع Firebase Auth + Firestore
+  // Auth context login function
   const { login } = useContext(AuthContext);
 
+  // Form states
   const [identifier, setIdentifier] = useState('');
   const [password, setPassword] = useState('');
   const [rememberMe, setRememberMe] = useState(false);
@@ -65,8 +81,10 @@ const LoginScreen = ({ navigation }) => {
   const [isLoading, setIsLoading] = useState(false);
   const [showPassword, setShowPassword] = useState(false);
 
+  // Shake animation for failed login
   const shakeAnim = useRef(new Animated.Value(0)).current;
 
+  // Calculate password strength
   const getPasswordStrength = (value) => {
     const pwd = value.trim();
 
@@ -99,6 +117,7 @@ const LoginScreen = ({ navigation }) => {
 
   const passwordStrength = getPasswordStrength(password);
 
+  // Run shake animation on login error
   const runShake = () => {
     Animated.sequence([
       Animated.timing(shakeAnim, {
@@ -139,6 +158,7 @@ const LoginScreen = ({ navigation }) => {
     ]).start();
   };
 
+  // Handle login with AuthContext
   const handleLogin = async () => {
     const trimmedIdentifier = identifier.trim();
     const trimmedPassword = password.trim();
@@ -156,12 +176,11 @@ const LoginScreen = ({ navigation }) => {
     try {
       setIsLoading(true);
 
-      // ✅ M4 AUTH CONNECTION: التحقق من بيانات المستخدم المخزنة في Firebase
       const response = await login(
-          trimmedIdentifier,
-          trimmedPassword,
-          accountType 
-         );
+        trimmedIdentifier,
+        trimmedPassword,
+        accountType
+      );
 
       setIsLoading(false);
 
@@ -194,7 +213,11 @@ const LoginScreen = ({ navigation }) => {
   return (
     <TouchableWithoutFeedback onPress={Keyboard.dismiss}>
       <View style={styles.container}>
-        <StatusBar barStyle="light-content" translucent backgroundColor="transparent" />
+        <StatusBar
+          barStyle="light-content"
+          translucent
+          backgroundColor="transparent"
+        />
 
         <KeyboardAvoidingView
           style={styles.container}
@@ -208,6 +231,7 @@ const LoginScreen = ({ navigation }) => {
             keyboardDismissMode="on-drag"
             contentContainerStyle={styles.scrollContent}
           >
+            {/* Hero image section */}
             <ImageBackground
               source={require('../../assets/image2.png')}
               style={styles.heroSection}
@@ -230,12 +254,15 @@ const LoginScreen = ({ navigation }) => {
               />
             </ImageBackground>
 
+            {/* Login form section */}
             <LinearGradient
               colors={['#241C56', '#2B2467', '#314D76']}
               style={styles.formSection}
             >
               <View style={styles.labelRow}>
-                <Text style={styles.labelText}>البريد الإلكتروني / اسم المستخدم</Text>
+                <Text style={styles.labelText}>
+                  البريد الإلكتروني / اسم المستخدم
+                </Text>
               </View>
 
               <View style={styles.inputContainer}>
@@ -280,12 +307,19 @@ const LoginScreen = ({ navigation }) => {
                 />
               </Animated.View>
 
+              {/* Password strength indicator */}
               {!!password.trim() && (
                 <View style={styles.strengthWrap}>
                   <View style={styles.strengthHeader}>
-                    <Text style={[styles.strengthLabel, { color: passwordStrength.color }]}>
+                    <Text
+                      style={[
+                        styles.strengthLabel,
+                        { color: passwordStrength.color },
+                      ]}
+                    >
                       {passwordStrength.label}
                     </Text>
+
                     <Text style={styles.strengthTitle}>قوة الرمز السري</Text>
                   </View>
 
@@ -303,6 +337,7 @@ const LoginScreen = ({ navigation }) => {
                 </View>
               )}
 
+              {/* Account type selection */}
               <View style={styles.accountTypeWrap}>
                 <Text style={styles.accountTypeTitle}>نوع الحساب</Text>
 
@@ -321,6 +356,7 @@ const LoginScreen = ({ navigation }) => {
                 </View>
               </View>
 
+              {/* Remember me and forgot password */}
               <View style={styles.optionsRow}>
                 <TouchableOpacity
                   onPress={() => navigation.navigate(SCREEN_NAMES.FORGOT_PASSWORD)}
@@ -331,6 +367,7 @@ const LoginScreen = ({ navigation }) => {
 
                 <View style={styles.rememberWrapper}>
                   <Text style={styles.rememberText}>تذكرني</Text>
+
                   <CheckBox
                     checked={rememberMe}
                     onPress={() => setRememberMe((prev) => !prev)}
@@ -338,6 +375,7 @@ const LoginScreen = ({ navigation }) => {
                 </View>
               </View>
 
+              {/* Login button */}
               <TouchableOpacity
                 style={[styles.primaryButton, isLoading && styles.buttonDisabled]}
                 onPress={handleLogin}
@@ -351,6 +389,7 @@ const LoginScreen = ({ navigation }) => {
                 )}
               </TouchableOpacity>
 
+              {/* Sign up link */}
               <View style={styles.signupRow}>
                 <TouchableOpacity
                   onPress={() => navigation.navigate(SCREEN_NAMES.ACCOUNT_TYPE)}
