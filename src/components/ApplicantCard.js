@@ -1,9 +1,11 @@
 import React from 'react';
 import { View, Text, StyleSheet, TouchableOpacity } from 'react-native';
+
 import { useTheme } from '../context/ThemeContext';
 
 /**
  * ApplicantCard
+ *
  * Props:
  * - applicant
  * - onAccept
@@ -12,6 +14,7 @@ import { useTheme } from '../context/ThemeContext';
 const ApplicantCard = ({ applicant, onAccept, onDetails }) => {
   const { colors, darkMode } = useTheme();
 
+  // Card color palette based on current theme
   const palette = {
     cardBg: colors.card,
     text: colors.text,
@@ -28,7 +31,7 @@ const ApplicantCard = ({ applicant, onAccept, onDetails }) => {
   return (
     <View style={[styles.card, { backgroundColor: palette.cardBg }]}>
       <View style={styles.row}>
-        
+        {/* Applicant information */}
         <View style={styles.info}>
           <View style={styles.nameRow}>
             <View
@@ -55,7 +58,10 @@ const ApplicantCard = ({ applicant, onAccept, onDetails }) => {
             <View
               style={[
                 styles.statusBadge,
-                { backgroundColor: palette.softBg, borderColor: palette.border },
+                {
+                  backgroundColor: palette.softBg,
+                  borderColor: palette.border,
+                },
               ]}
             >
               <Text style={[styles.statusText, { color: palette.primary }]}>
@@ -71,7 +77,7 @@ const ApplicantCard = ({ applicant, onAccept, onDetails }) => {
           </View>
         </View>
 
-       
+        {/* Action buttons */}
         <View style={styles.actions}>
           <TouchableOpacity
             style={[styles.acceptBtn, { backgroundColor: palette.primary }]}
