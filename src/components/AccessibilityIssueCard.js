@@ -1,7 +1,15 @@
 import React from 'react';
-import { View, Text, StyleSheet, Image, TouchableOpacity } from 'react-native';
+import {
+  View,
+  Text,
+  StyleSheet,
+  Image,
+  TouchableOpacity,
+} from 'react-native';
+
 import { useTheme } from '../context/ThemeContext';
 
+// Building placeholder icon
 const BuildingPlaceholderIcon = ({ color = '#8F8B9E' }) => (
   <View style={styles.buildingWrap}>
     <View style={[styles.buildingRoof, { backgroundColor: color }]} />
@@ -16,9 +24,11 @@ const BuildingPlaceholderIcon = ({ color = '#8F8B9E' }) => (
   </View>
 );
 
+// Reply icon
 const ReplyIcon = ({ color = '#4B3F72' }) => (
   <View style={styles.replyWrap}>
     <View style={[styles.replyLine, { backgroundColor: color }]} />
+
     <View
       style={[
         styles.replyHead,
@@ -38,6 +48,7 @@ const AccessibilityIssueCard = ({
 }) => {
   const { colors, darkMode } = useTheme();
 
+  // Card color palette based on current theme
   const palette = {
     cardBg: colors.card,
     text: colors.text,
@@ -63,13 +74,14 @@ const AccessibilityIssueCard = ({
           <Text style={[styles.title, { color: palette.text }]}>
             {issue.title}
           </Text>
+
           <Text style={[styles.timeAgo, { color: palette.subText }]}>
             {issue.timeAgo}
           </Text>
         </View>
       </View>
 
-      {/* Image */}
+      {/* Issue image or placeholder */}
       {issue.image ? (
         <View style={styles.imageContainer}>
           <Image
@@ -92,15 +104,16 @@ const AccessibilityIssueCard = ({
         </View>
       )}
 
-      {/* Description */}
+      {/* Issue description */}
       <Text style={[styles.sectionLabel, { color: palette.text }]}>
         وصف المشكلة
       </Text>
+
       <Text style={[styles.description, { color: palette.subText }]}>
         {issue.description}
       </Text>
 
-      {/* Response */}
+      {/* Existing response */}
       {showResponse && issue.response ? (
         <View
           style={[
@@ -114,13 +127,14 @@ const AccessibilityIssueCard = ({
           <Text style={[styles.responseLabel, { color: palette.text }]}>
             الرد
           </Text>
+
           <Text style={[styles.responseText, { color: palette.subText }]}>
             {issue.response}
           </Text>
         </View>
       ) : null}
 
-      {/* Action */}
+      {/* Response action */}
       <View style={styles.actionRow}>
         <TouchableOpacity
           style={[
@@ -134,6 +148,7 @@ const AccessibilityIssueCard = ({
           activeOpacity={0.88}
         >
           <ReplyIcon color={palette.actionText} />
+
           <Text style={[styles.replyButtonText, { color: palette.actionText }]}>
             {actionLabel}
           </Text>
