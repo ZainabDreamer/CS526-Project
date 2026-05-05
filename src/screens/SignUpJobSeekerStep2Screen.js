@@ -16,7 +16,7 @@ import { AuthContext } from '../context/AuthContext';
 import { createUserWithEmailAndPassword } from 'firebase/auth';
 import { auth, db } from '../services/firebase';
 import { doc, setDoc } from 'firebase/firestore';
-
+//supportOptions
 const supportOptions = ['دعم حركي', 'دعم بصري', 'دعم سمعي', 'أدوات تقنية مساعدة'];
 const accessibilityOptions = [
   'بيئة مهيأة حركياً (منحدرات / مصاعد)',
@@ -25,7 +25,9 @@ const accessibilityOptions = [
   'ساعات عمل مرنة',
   'أخرى',
 ];
+//interviewOptions
 const interviewOptions = ['مقابلة حضورية', 'مقابلة عن بعد', 'مترجم لغة إشارة'];
+//challengeOptions
 const challengeOptions = [
   'عدم وضوح جاهزية الشركة',
   'بيئة غير مهيأة',
@@ -54,13 +56,15 @@ const SignUpJobSeekerStep2Screen = ({ navigation, route }) => {
       .replace(/\s{2,}/g, ' ')
       .slice(0, 80);
   };
+  //sanitizeUsername
   const sanitizeUsername = (value) => {
     return value.replace(/\s/g, '').slice(0, 40);
   };
+  //isValidUsername
   const isValidUsername = (value) => {
     return /^[a-zA-Z0-9_]{3,20}$/.test(value);
   };
-
+//isStrongPassword
   const isStrongPassword = (value) => {
     return /^(?=.*[A-Za-z])(?=.*\d).{8,}$/.test(value);
   };
@@ -142,7 +146,7 @@ const SignUpJobSeekerStep2Screen = ({ navigation, route }) => {
     challenge,
     createdAt: new Date().toISOString(),
   };
-
+//userCredential
   try {
     const userCredential = await createUserWithEmailAndPassword(
       auth,
@@ -388,6 +392,8 @@ const SignUpJobSeekerStep2Screen = ({ navigation, route }) => {
     </KeyboardAvoidingView>
   );
 };
+
+//styles
 const styles = StyleSheet.create({
   container: {
     flex: 1,
