@@ -28,10 +28,12 @@ import {
   serverTimestamp,
 } from 'firebase/firestore';
 
+// Custom back arrow icon used in the screen header.
 const BackArrowIcon = ({ color = '#1F1655' }) => (
   <Text style={[styles.backArrowIcon, { color }]}>{'‹'}</Text>
 );
 
+// Simple building icon used when no specific company logo is displayed.
 const BuildingIcon = ({ color = '#4B3F72', secondary = '#6A5AA1' }) => (
   <View style={styles.buildingWrap}>
     <View style={[styles.buildingMain, { backgroundColor: color }]} />
@@ -39,6 +41,7 @@ const BuildingIcon = ({ color = '#4B3F72', secondary = '#6A5AA1' }) => (
   </View>
 );
 
+// Check icon used for accessibility feature items.
 const CheckIcon = ({ color = '#36B487', bg = '#E8F7F1' }) => (
   <View style={[styles.checkWrap, { backgroundColor: bg }]}>
     <View style={[styles.checkStem, { backgroundColor: color }]} />
@@ -46,6 +49,7 @@ const CheckIcon = ({ color = '#36B487', bg = '#E8F7F1' }) => (
   </View>
 );
 
+// Bookmark icon used for saving and unsaving a job.
 const BookmarkIcon = ({ color = '#4B3F72' }) => (
   <View style={styles.bookmarkWrap}>
     <View style={[styles.bookmarkBody, { borderColor: color }]} />
@@ -53,6 +57,7 @@ const BookmarkIcon = ({ color = '#4B3F72' }) => (
   </View>
 );
 
+// Small information icon used beside section titles.
 const InfoMiniIcon = ({ color = '#4B3F72' }) => (
   <View style={styles.infoMiniWrap}>
     <View style={[styles.infoMiniDot, { backgroundColor: color }]} />
@@ -60,14 +65,19 @@ const InfoMiniIcon = ({ color = '#4B3F72' }) => (
   </View>
 );
 
+// Job details screen displays job information, inclusivity score, requirements,
+// accessibility features, and allows the user to apply or save the job.
 const JobDetailsScreen = ({ navigation, route }) => {
   const { colors, darkMode } = useTheme();
   const { user } = useContext(AuthContext);
+
+  // Gets the selected job from navigation params, or uses mock data as fallback.
   const { job } = route.params || {};
   const displayJob = job || mockJobs[0];
 
   const [isSaved, setIsSaved] = useState(false);
 
+  // Color palette changes depending on the active theme.
   const palette = {
     pageBg: colors.background,
     cardBg: colors.card,
@@ -90,38 +100,65 @@ const JobDetailsScreen = ({ navigation, route }) => {
     heroSubText: darkMode ? '#B7B2C9' : '#8A85A0',
   };
 
+  // Converts requirements/qualifications text into a clean list.
   const requirements = useMemo(() => {
-  if (Array.isArray(displayJob.requirements)) return displayJob.requirements;
+    if (Array.isArray(displayJob.requirements)) return displayJob.requirements;
 
-  if (displayJob.qualifications) {
-    return String(displayJob.qualifications)
-      .split('\n')
-      .map((item) => item.trim())
-      .filter(Boolean);
-  }
+    if (displayJob.qualifications) {
+      return String(displayJob.qualifications)
+        .split('\n')
+        .map((item) => item.trim())
+        .filter(Boolean);
+    }
 
-  return [];
-}, [displayJob.requirements, displayJob.qualifications]);
+    return [];
+  }, [displayJob.requirements, displayJob.qualifications]);
 
-const accessibilityFeatures = useMemo(() => {
-  if (Array.isArray(displayJob.accessibilityFeatures)) {
-    return displayJob.accessibilityFeatures;
-  }
+  // Converts accessibility features/benefits text into a clean list.
+  const accessibilityFeatures = useMemo(() => {
+    if (Array.isArray(displayJob.accessibilityFeatures)) {
+      return displayJob.accessibilityFeatures;
+    }
 
-  if (displayJob.benefits) {
-    return String(displayJob.benefits)
-      .split('\n')
-      .map((item) => item.trim())
-      .filter(Boolean);
-  }
+    if (displayJob.benefits) {
+      return String(displayJob.benefits)
+        .split('\n')
+        .map((item) => item.trim())
+        .filter(Boolean);
+    }
 
-  return [];
-}, [displayJob.accessibilityFeatures, displayJob.benefits]);
+    return [];
+  }, [displayJob.accessibilityFeatures, displayJob.benefits]);
 
+  // Checks whether the current job is already saved by the logged-in user.
   useFocusEffect(
-  useCallback(() => {
-    const checkSaved = async () => {
-      if (!user?.uid && !user?.id) return;
+    useCallback(() => {
+      const checkSaved = async () => {
+        if (!user?.uid && !user?.id) return;
+
+        const userId = user?.uid || user?.id;
+
+        const q = query(
+          collection(db, 'savedJobs'),
+          where('userId', '==', userId),
+          where('jobId', '==', displayJob.id)
+        );
+
+        const snapshot = await getDocs(q);
+        setIsSaved(!snapshot.empty);
+      };
+
+      checkSaved();
+    }, [displayJob.id, user])
+  );
+
+  // Saves the job if not saved, or removes it from saved jobs if already saved.
+  const handleSaveJob = useCallback(async () => {
+    try {
+      if (!user?.uid && !user?.id) {
+        Alert.alert('تنبيه', 'يرجى تسجيل الدخول أولاً.');
+        return;
+      }
 
       const userId = user?.uid || user?.id;
 
@@ -132,69 +169,47 @@ const accessibilityFeatures = useMemo(() => {
       );
 
       const snapshot = await getDocs(q);
-      setIsSaved(!snapshot.empty);
-    };
 
-    checkSaved();
-  }, [displayJob.id, user])
-);
+      if (!snapshot.empty) {
+        await deleteDoc(doc(db, 'savedJobs', snapshot.docs[0].id));
+        setIsSaved(false);
+        Alert.alert('تمت الإزالة', 'تمت إزالة الوظيفة من المحفوظات.');
+        return;
+      }
 
-const handleSaveJob = useCallback(async () => {
-  try {
-    if (!user?.uid && !user?.id) {
-      Alert.alert('تنبيه', 'يرجى تسجيل الدخول أولاً.');
-      return;
+      await addDoc(collection(db, 'savedJobs'), {
+        userId,
+        jobId: displayJob.id,
+
+        job: {
+          ...displayJob,
+          id: displayJob.id,
+          company: displayJob.company || displayJob.orgName || 'جهة معتمدة',
+          orgName: displayJob.orgName || displayJob.company || 'جهة معتمدة',
+          score: Number(displayJob.score ?? displayJob.inclusivityScore ?? 0),
+        },
+
+        orgId: displayJob.orgId || null,
+        orgName: displayJob.orgName || displayJob.company || 'جهة معتمدة',
+        savedAt: serverTimestamp(),
+      });
+
+      setIsSaved(true);
+
+      Alert.alert('تم الحفظ', 'تم حفظ الوظيفة في قائمتك.', [
+        { text: 'حسنًا' },
+        {
+          text: 'عرض المحفوظات',
+          onPress: () => navigation.navigate('SavedJobs'),
+        },
+      ]);
+    } catch (error) {
+      console.log('SAVE JOB ERROR:', error);
+      Alert.alert('خطأ', 'تعذر تحديث حالة حفظ الوظيفة.');
     }
+  }, [displayJob, isSaved, navigation, user]);
 
-    const userId = user?.uid || user?.id;
-
-    const q = query(
-      collection(db, 'savedJobs'),
-      where('userId', '==', userId),
-      where('jobId', '==', displayJob.id)
-    );
-
-    const snapshot = await getDocs(q);
-
-    if (!snapshot.empty) {
-      await deleteDoc(doc(db, 'savedJobs', snapshot.docs[0].id));
-      setIsSaved(false);
-      Alert.alert('تمت الإزالة', 'تمت إزالة الوظيفة من المحفوظات.');
-      return;
-    }
-
-    await addDoc(collection(db, 'savedJobs'), {
-  userId,
-  jobId: displayJob.id,
-
-  job: {
-    ...displayJob,
-    id: displayJob.id,
-    company: displayJob.company || displayJob.orgName || 'جهة معتمدة',
-    orgName: displayJob.orgName || displayJob.company || 'جهة معتمدة',
-    score: Number(displayJob.score ?? displayJob.inclusivityScore ?? 0),
-  },
-
-  orgId: displayJob.orgId || null,
-  orgName: displayJob.orgName || displayJob.company || 'جهة معتمدة',
-  savedAt: serverTimestamp(),
-});
-
-    setIsSaved(true);
-
-    Alert.alert('تم الحفظ', 'تم حفظ الوظيفة في قائمتك.', [
-      { text: 'حسنًا' },
-      {
-        text: 'عرض المحفوظات',
-        onPress: () => navigation.navigate('SavedJobs'),
-      },
-    ]);
-  } catch (error) {
-    console.log('SAVE JOB ERROR:', error);
-    Alert.alert('خطأ', 'تعذر تحديث حالة حفظ الوظيفة.');
-  }
-}, [displayJob, isSaved, navigation, user]);
-
+  // Navigates to the job application screen with the selected job data.
   const handleApplyNow = useCallback(() => {
     navigation.navigate(SCREEN_NAMES.JOB_APPLICATION, {
       job: displayJob,
@@ -263,8 +278,10 @@ const handleSaveJob = useCallback(async () => {
           </Text>
 
           <View style={styles.scoreRow}>
-           <ScoreIndicator percentage={Number(displayJob.score ?? displayJob.inclusivityScore ?? 0)} size={74}
-/>
+            <ScoreIndicator
+              percentage={Number(displayJob.score ?? displayJob.inclusivityScore ?? 0)}
+              size={74}
+            />
 
             <View style={styles.scoreTextWrap}>
               <Text style={[styles.scoreTitle, { color: palette.primary }]}>
@@ -307,7 +324,9 @@ const handleSaveJob = useCallback(async () => {
                     { backgroundColor: palette.checkColor },
                   ]}
                 />
-                <Text style={[styles.reqText, { color: palette.text }]}>{req}</Text>
+                <Text style={[styles.reqText, { color: palette.text }]}>
+                  {req}
+                </Text>
               </View>
             ))
           ) : (
@@ -603,28 +622,28 @@ const styles = StyleSheet.create({
   },
 
   reqRow: {
-  flexDirection: 'row-reverse',
-  alignItems: 'flex-start',
-  justifyContent: 'flex-start',
-  marginBottom: 10,
-  width: '100%',
-},
+    flexDirection: 'row-reverse',
+    alignItems: 'flex-start',
+    justifyContent: 'flex-start',
+    marginBottom: 10,
+    width: '100%',
+  },
 
-reqText: {
-  flex: 1,
-  fontSize: 14,
-  textAlign: 'right',
-  writingDirection: 'rtl',
-  lineHeight: 22,
-  marginRight: 8,
-},
+  reqText: {
+    flex: 1,
+    fontSize: 14,
+    textAlign: 'right',
+    writingDirection: 'rtl',
+    lineHeight: 22,
+    marginRight: 8,
+  },
 
-bulletDot: {
-  width: 7,
-  height: 7,
-  borderRadius: 3.5,
-  marginTop: 8,
-},
+  bulletDot: {
+    width: 7,
+    height: 7,
+    borderRadius: 3.5,
+    marginTop: 8,
+  },
 
   emptyText: {
     fontSize: 13,
@@ -662,21 +681,21 @@ bulletDot: {
   },
 
   featureRow: {
-  flexDirection: 'row-reverse',
-  alignItems: 'center',
-  justifyContent: 'flex-start',
-  marginBottom: 10,
-  width: '100%',
-},
+    flexDirection: 'row-reverse',
+    alignItems: 'center',
+    justifyContent: 'flex-start',
+    marginBottom: 10,
+    width: '100%',
+  },
 
-featureText: {
-  flex: 1,
-  fontSize: 13,
-  textAlign: 'right',
-  writingDirection: 'rtl',
-  marginRight: 10,
-  lineHeight: 21,
-},
+  featureText: {
+    flex: 1,
+    fontSize: 13,
+    textAlign: 'right',
+    writingDirection: 'rtl',
+    marginRight: 10,
+    lineHeight: 21,
+  },
 
   checkWrap: {
     width: 18,
