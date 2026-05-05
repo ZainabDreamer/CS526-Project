@@ -16,7 +16,6 @@ import CustomButton from '../components/CustomButton';
 import { useTheme } from '../context/ThemeContext';
 import AppHeader from '../components/AppHeader';
 import { AuthContext } from '../context/AuthContext';
-import { SCREEN_NAMES } from '../constants/labels';
 import { db } from '../services/firebase';
 import {
   collection,
@@ -27,6 +26,7 @@ import {
   increment,
 } from 'firebase/firestore';
 
+// Custom filter icon
 const FilterIcon = ({ color = '#8F8B9E' }) => (
   <View style={styles.filterWrap}>
     <View style={[styles.filterTop, { backgroundColor: color }]} />
@@ -34,6 +34,7 @@ const FilterIcon = ({ color = '#8F8B9E' }) => (
   </View>
 );
 
+// Custom upload placeholder icon
 const ImagePlaceholderIcon = ({ color = '#8F8B9E' }) => (
   <View style={styles.imageIconWrap}>
     <View style={[styles.imageBox, { borderColor: color }]} />
@@ -44,9 +45,10 @@ const ImagePlaceholderIcon = ({ color = '#8F8B9E' }) => (
 
 const EvaluationFormScreen = ({ navigation, route }) => {
   const { user } = useContext(AuthContext);
-
   const theme = useTheme();
+
   const darkMode = theme?.darkMode ?? false;
+
   const colors = theme?.colors ?? {
     background: '#F3F1FA',
     card: '#FFFFFF',
@@ -56,6 +58,8 @@ const EvaluationFormScreen = ({ navigation, route }) => {
   };
 
   const { company = {} } = route.params || {};
+
+  // Form states
   const [activeTab, setActiveTab] = useState('current');
   const [notes, setNotes] = useState('');
   const [isReady, setIsReady] = useState('');
@@ -64,6 +68,7 @@ const EvaluationFormScreen = ({ navigation, route }) => {
   const [rating, setRating] = useState(4);
   const [file, setFile] = useState(null);
 
+  // Screen color palette based on current theme
   const palette = {
     pageBg: colors.background,
     cardBg: colors.card,
@@ -86,6 +91,7 @@ const EvaluationFormScreen = ({ navigation, route }) => {
     bannerSubText: 'rgba(255,255,255,0.85)',
   };
 
+  // Submit evaluation to Firestore
   const handleSubmit = async () => {
     if (!notes.trim() || !isReady.trim() || !treatment.trim()) {
       Alert.alert('بيانات ناقصة', 'يرجى تعبئة الحقول الأساسية قبل إرسال التقييم.');
@@ -96,8 +102,8 @@ const EvaluationFormScreen = ({ navigation, route }) => {
       userId: user?.uid || user?.id || null,
       userName: user?.name || '',
       company: {
-      id: company?.id || company?.orgId || null,
-      name: company?.name || company?.orgName || 'جهة غير محددة',
+        id: company?.id || company?.orgId || null,
+        name: company?.name || company?.orgName || 'جهة غير محددة',
       },
       orgId: company?.orgId || company?.id || null,
       orgName: company?.name || company?.orgName || 'جهة غير محددة',
@@ -118,26 +124,28 @@ const EvaluationFormScreen = ({ navigation, route }) => {
     };
 
     try {
-  await addDoc(collection(db, 'evaluations'), payload);
+      await addDoc(collection(db, 'evaluations'), payload);
 
-  if (payload.orgId) {
-    await updateDoc(doc(db, 'organizations', payload.orgId), {
-      evaluationsCount: increment(1),
-      updatedAt: serverTimestamp(),
-    });
-  }
+      // Update organization evaluation count
+      if (payload.orgId) {
+        await updateDoc(doc(db, 'organizations', payload.orgId), {
+          evaluationsCount: increment(1),
+          updatedAt: serverTimestamp(),
+        });
+      }
 
-  Alert.alert('تم إرسال التقييم', 'تم حفظ تقييمك بنجاح.', [
-    {
-      text: 'حسنًا',
-      onPress: () => navigation.goBack(),
-    },
-  ]);
-} catch (error) {
-  Alert.alert('خطأ', 'تعذر حفظ التقييم. يرجى المحاولة مرة أخرى.');
-}
+      Alert.alert('تم إرسال التقييم', 'تم حفظ تقييمك بنجاح.', [
+        {
+          text: 'حسنًا',
+          onPress: () => navigation.goBack(),
+        },
+      ]);
+    } catch (error) {
+      Alert.alert('خطأ', 'تعذر حفظ التقييم. يرجى المحاولة مرة أخرى.');
+    }
   };
 
+  // Pick attachment image from device gallery
   const pickFile = async () => {
     const permission = await ImagePicker.requestMediaLibraryPermissionsAsync();
 
@@ -170,6 +178,7 @@ const EvaluationFormScreen = ({ navigation, route }) => {
         horizontalPadding={25}
       />
 
+      {/* Main banner */}
       <LinearGradient
         colors={['#4B3F72', '#40357E', '#312767']}
         start={{ x: 0, y: 0 }}
@@ -179,11 +188,13 @@ const EvaluationFormScreen = ({ navigation, route }) => {
         <Text style={styles.bannerText}>
           التقييم الصحيح لبيئة <Text style={styles.bannerHighlight}>شاملة</Text>
         </Text>
+
         <Text style={[styles.bannerSubText, { color: palette.bannerSubText }]}>
           شارك رأيك لتطوير بيئة عمل أكثر شمولية ووضوحًا للجميع
         </Text>
       </LinearGradient>
 
+      {/* Tabs section */}
       <View style={styles.tabRow}>
         <TouchableOpacity
           style={[styles.filterButton, { backgroundColor: palette.cardBg }]}
@@ -195,7 +206,10 @@ const EvaluationFormScreen = ({ navigation, route }) => {
         <View
           style={[
             styles.tabs,
-            { backgroundColor: palette.tabBg, borderColor: palette.tabBorder },
+            {
+              backgroundColor: palette.tabBg,
+              borderColor: palette.tabBorder,
+            },
           ]}
         >
           <TouchableOpacity
@@ -240,17 +254,25 @@ const EvaluationFormScreen = ({ navigation, route }) => {
         contentContainerStyle={styles.content}
         showsVerticalScrollIndicator={false}
       >
+        {/* Company and rating card */}
         <View style={[styles.infoCard, { backgroundColor: palette.cardBg }]}>
           <View style={styles.metaRow}>
             <Text style={[styles.companyName, { color: palette.text }]}>
               {company.name || 'شركة أحمد للمقاولات'}
             </Text>
-            <Text style={[styles.timeAgo, { color: palette.timeText }]}>منذ 3 شهور</Text>
+
+            <Text style={[styles.timeAgo, { color: palette.timeText }]}>
+              منذ 3 شهور
+            </Text>
           </View>
 
-          <Text style={[styles.addNew, { color: palette.helperText }]}>إضافة تقييم جديد</Text>
+          <Text style={[styles.addNew, { color: palette.helperText }]}>
+            إضافة تقييم جديد
+          </Text>
 
-          <Text style={[styles.fieldLabel, { color: palette.fieldLabel }]}>تقييمك</Text>
+          <Text style={[styles.fieldLabel, { color: palette.fieldLabel }]}>
+            تقييمك
+          </Text>
 
           <View style={styles.starsRow}>
             {[1, 2, 3, 4, 5].map((star) => (
@@ -286,6 +308,7 @@ const EvaluationFormScreen = ({ navigation, route }) => {
           </View>
         </View>
 
+        {/* Evaluation form */}
         <View style={[styles.formCard, { backgroundColor: palette.cardBg }]}>
           <CustomInput
             label="ملاحظات"
@@ -319,6 +342,7 @@ const EvaluationFormScreen = ({ navigation, route }) => {
             placeholder=""
           />
 
+          {/* Attachment upload */}
           <View style={styles.uploadBlock}>
             <Text style={[styles.uploadLabel, { color: palette.fieldLabel }]}>
               إرفاق صورة أو مستند
@@ -342,6 +366,7 @@ const EvaluationFormScreen = ({ navigation, route }) => {
                     style={styles.previewImage}
                     resizeMode="cover"
                   />
+
                   <View style={styles.fileOverlay}>
                     <Text style={styles.fileOverlayText}>تم اختيار مرفق</Text>
                   </View>
@@ -349,8 +374,12 @@ const EvaluationFormScreen = ({ navigation, route }) => {
               ) : (
                 <>
                   <ImagePlaceholderIcon color={palette.uploadText} />
+
                   <Text
-                    style={[styles.imagePlaceholderText, { color: palette.uploadText }]}
+                    style={[
+                      styles.imagePlaceholderText,
+                      { color: palette.uploadText },
+                    ]}
                   >
                     اضغط لإضافة مرفق
                   </Text>
@@ -374,7 +403,9 @@ const EvaluationFormScreen = ({ navigation, route }) => {
 };
 
 const styles = StyleSheet.create({
-  container: { flex: 1 },
+  container: {
+    flex: 1,
+  },
 
   filterWrap: {
     width: 16,
