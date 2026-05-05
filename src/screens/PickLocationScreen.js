@@ -28,6 +28,7 @@ const PickLocationScreen = ({ navigation, route }) => {
       address: 'موقع محدد على الخريطة',
     });
   }
+  
 };
   const handleConfirm = () => {
     if (!selectedLocation) return;
