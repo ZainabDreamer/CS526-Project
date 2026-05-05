@@ -1,4 +1,4 @@
-import React, { useMemo, useState, useCallback, useContext} from 'react';
+import React, { useMemo, useState, useCallback, useContext } from 'react';
 import {
   View,
   Text,
@@ -22,7 +22,7 @@ import {
   getDocs,
 } from 'firebase/firestore';
 
-
+// Tabs used in the job seeker main navigation bar.
 const TABS = [
   { key: 'jobs', label: 'الفرص الوظيفية' },
   { key: 'companies', label: 'الشركات' },
@@ -31,6 +31,7 @@ const TABS = [
   { key: 'interviews', label: 'المقابلات' },
 ];
 
+// Search icon displayed inside the search input.
 const SearchIcon = ({ color = '#8F8B9E' }) => (
   <View style={styles.searchIconWrap}>
     <View style={[styles.searchCircle, { borderColor: color }]} />
@@ -38,6 +39,7 @@ const SearchIcon = ({ color = '#8F8B9E' }) => (
   </View>
 );
 
+// Filter icon displayed on the left side of the search bar.
 const FilterIcon = ({ color = '#8F8B9E' }) => (
   <View style={styles.filterWrap}>
     <View style={[styles.filterTop, { backgroundColor: color }]} />
@@ -45,14 +47,17 @@ const FilterIcon = ({ color = '#8F8B9E' }) => (
   </View>
 );
 
+// InterviewReminderScreen displays the user's scheduled interviews from Firestore.
 const InterviewReminderScreen = ({ navigation }) => {
   const { colors, darkMode } = useTheme();
   const { user } = useContext(AuthContext);
 
+  // Local states for active tab, search text, and interview records.
   const [activeTab, setActiveTab] = useState('interviews');
   const [search, setSearch] = useState('');
   const [interviews, setInterviews] = useState([]);
 
+  // Palette handles screen colors for light and dark mode.
   const palette = {
     bg: colors.background,
     card: colors.card,
@@ -66,67 +71,71 @@ const InterviewReminderScreen = ({ navigation }) => {
     softBg: darkMode ? '#262334' : '#F8F6FC',
   };
 
+  // Loads interviews every time the screen is focused.
   useFocusEffect(
-  useCallback(() => {
-    const loadInterviews = async () => {
-      try {
-        const userId = user?.uid || user?.id;
+    useCallback(() => {
+      const loadInterviews = async () => {
+        try {
+          const userId = user?.uid || user?.id;
 
-        if (!userId) {
+          if (!userId) {
+            setInterviews([]);
+            return;
+          }
+
+          // Query interviews that belong to the current job seeker.
+          const q = query(
+            collection(db, 'interviews'),
+            where('applicantId', '==', userId)
+          );
+
+          const snapshot = await getDocs(q);
+
+          // Format Firestore interview data for display in the UI.
+          const mappedInterviews = snapshot.docs
+            .map((docSnap) => {
+              const item = {
+                id: docSnap.id,
+                ...docSnap.data(),
+              };
+
+              const dateValue = item.date ? new Date(item.date) : null;
+
+              return {
+                id: item.id,
+                title: item.jobTitle || 'مقابلة وظيفية',
+                company: item.orgName || 'جهة توظيف',
+                date: dateValue
+                  ? dateValue.toLocaleDateString('ar-SA')
+                  : 'تاريخ غير محدد',
+                time: dateValue
+                  ? dateValue.toLocaleTimeString('ar-SA', {
+                      hour: '2-digit',
+                      minute: '2-digit',
+                    })
+                  : 'وقت غير محدد',
+                location: item.type === 'عن بعد' ? 'عن بعد' : 'مقر الجهة',
+                mode: item.type || 'عن بعد',
+                rawInterview: item,
+              };
+            })
+            .sort(
+              (a, b) =>
+                new Date(b.rawInterview.date) - new Date(a.rawInterview.date)
+            );
+
+          setInterviews(mappedInterviews);
+        } catch (error) {
+          console.log('LOAD FIREBASE INTERVIEWS ERROR:', error);
           setInterviews([]);
-          return;
         }
+      };
 
-        const q = query(
-         collection(db, 'interviews'),
-         where('applicantId', '==', userId)
-       );
+      loadInterviews();
+    }, [user])
+  );
 
-        const snapshot = await getDocs(q);
-
-         const mappedInterviews = snapshot.docs
-  .map((docSnap) => {
-    const item = {
-      id: docSnap.id,
-      ...docSnap.data(),
-    };
-
-    const dateValue = item.date
-      ? new Date(item.date)
-      : null;
-
-    return {
-      id: item.id,
-      title: item.jobTitle || 'مقابلة وظيفية',
-      company: item.orgName || 'جهة توظيف',
-      date: dateValue
-        ? dateValue.toLocaleDateString('ar-SA')
-        : 'تاريخ غير محدد',
-      time: dateValue
-        ? dateValue.toLocaleTimeString('ar-SA', {
-            hour: '2-digit',
-            minute: '2-digit',
-          })
-        : 'وقت غير محدد',
-      location: item.type === 'عن بعد' ? 'عن بعد' : 'مقر الجهة',
-      mode: item.type || 'عن بعد',
-      rawInterview: item,
-    };
-  })
-  .sort((a, b) => new Date(b.rawInterview.date) - new Date(a.rawInterview.date));
-            
-
-        setInterviews(mappedInterviews);
-      } catch (error) {
-        console.log('LOAD FIREBASE INTERVIEWS ERROR:', error);
-        setInterviews([]);
-      }
-    };
-
-    loadInterviews();
-  }, [user])
-);
-
+  // Handles navigation when the user switches tabs.
   const handleTab = (key) => {
     if (key === 'jobs') navigation.navigate(SCREEN_NAMES.HOME);
     if (key === 'companies') navigation.navigate(SCREEN_NAMES.COMPANIES);
@@ -134,29 +143,30 @@ const InterviewReminderScreen = ({ navigation }) => {
     if (key === 'map') navigation.navigate(SCREEN_NAMES.MAP);
   };
 
-    const filteredInterviews = useMemo(() => {
-  const q = search.trim();
-  if (!q) return interviews;
+  // Filters interviews based on title, company, date, time, location, or mode.
+  const filteredInterviews = useMemo(() => {
+    const q = search.trim();
 
-  return interviews.filter((item) => {
-    const title = item.title || '';
-    const company = item.company || '';
-    const time = item.time || '';
-    const date = item.date || '';
-    const location = item.location || '';
-    const mode = item.mode || '';
+    if (!q) return interviews;
 
-    return (
-      title.includes(q) ||
-      company.includes(q) ||
-      time.includes(q) ||
-      date.includes(q) ||
-      location.includes(q) ||
-      mode.includes(q)
-    );
-  });
-}, [search, interviews]);
-      
+    return interviews.filter((item) => {
+      const title = item.title || '';
+      const company = item.company || '';
+      const time = item.time || '';
+      const date = item.date || '';
+      const location = item.location || '';
+      const mode = item.mode || '';
+
+      return (
+        title.includes(q) ||
+        company.includes(q) ||
+        time.includes(q) ||
+        date.includes(q) ||
+        location.includes(q) ||
+        mode.includes(q)
+      );
+    });
+  }, [search, interviews]);
 
   return (
     <View style={[styles.container, { backgroundColor: palette.bg }]}>
@@ -167,6 +177,7 @@ const InterviewReminderScreen = ({ navigation }) => {
 
       <AppHeader navigation={navigation} />
 
+      {/* Search bar for filtering interview reminders. */}
       <View style={[styles.searchBar, { backgroundColor: palette.inputBg }]}>
         <View style={styles.searchRightIcon}>
           <SearchIcon color={palette.searchIcon} />
@@ -186,6 +197,7 @@ const InterviewReminderScreen = ({ navigation }) => {
         </View>
       </View>
 
+      {/* Top tab bar for moving between job seeker sections. */}
       <View style={styles.tabsWrap}>
         <HomeTopBar
           tabs={TABS}
@@ -197,6 +209,7 @@ const InterviewReminderScreen = ({ navigation }) => {
         />
       </View>
 
+      {/* Section title and subtitle. */}
       <View style={styles.sectionHeader}>
         <Text style={[styles.sectionTitle, { color: palette.text }]}>
           المقابلات
@@ -211,6 +224,7 @@ const InterviewReminderScreen = ({ navigation }) => {
         contentContainerStyle={styles.content}
       >
         {filteredInterviews.length === 0 ? (
+          // Empty state shown when there are no interviews.
           <View
             style={[
               styles.emptyCard,
@@ -228,6 +242,7 @@ const InterviewReminderScreen = ({ navigation }) => {
             </Text>
           </View>
         ) : (
+          // Interview cards list.
           filteredInterviews.map((item) => (
             <View
               key={item.id}
@@ -245,18 +260,18 @@ const InterviewReminderScreen = ({ navigation }) => {
                     ]}
                   >
                     <Text
-  style={[
-    styles.badgeText,
-    {
-      color:
-        item.mode === 'حضورية'
-          ? '#E57373'
-          : item.mode === 'عن بعد'
-          ? '#4CAF50'
-          : '#FF9800',
-    },
-  ]}
->
+                      style={[
+                        styles.badgeText,
+                        {
+                          color:
+                            item.mode === 'حضورية'
+                              ? '#E57373'
+                              : item.mode === 'عن بعد'
+                              ? '#4CAF50'
+                              : '#FF9800',
+                        },
+                      ]}
+                    >
                       {item.mode || 'عن بعد'}
                     </Text>
                   </View>
@@ -272,7 +287,9 @@ const InterviewReminderScreen = ({ navigation }) => {
                   </Text>
 
                   <Text style={[styles.cardMeta, { color: palette.primary }]}>
-                    {(item.date || 'تاريخ غير محدد') + ' • ' + (item.time || 'وقت غير محدد')}
+                    {(item.date || 'تاريخ غير محدد') +
+                      ' • ' +
+                      (item.time || 'وقت غير محدد')}
                   </Text>
 
                   <Text style={[styles.cardLocation, { color: palette.subText }]}>
@@ -281,6 +298,7 @@ const InterviewReminderScreen = ({ navigation }) => {
                 </View>
               </View>
 
+              {/* Card actions: details and location. */}
               <View style={styles.actionsRow}>
                 <TouchableOpacity
                   style={[
@@ -288,9 +306,12 @@ const InterviewReminderScreen = ({ navigation }) => {
                     { borderColor: palette.primary },
                   ]}
                   onPress={() =>
-                    navigation.navigate(SCREEN_NAMES.JOB_SEEKER_INTERVIEW_DETAILS, {
-                    interview: item,
-                    })
+                    navigation.navigate(
+                      SCREEN_NAMES.JOB_SEEKER_INTERVIEW_DETAILS,
+                      {
+                        interview: item,
+                      }
+                    )
                   }
                   activeOpacity={0.85}
                 >
@@ -577,4 +598,3 @@ const styles = StyleSheet.create({
     textAlign: 'center',
   },
 });
-
