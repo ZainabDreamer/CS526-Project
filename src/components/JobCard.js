@@ -2,7 +2,6 @@ import React from 'react';
 import { View, Text, StyleSheet, TouchableOpacity } from 'react-native';
 import ScoreIndicator from './ScoreIndicator';
 import { useTheme } from '../context/ThemeContext';
-
 /**
  * JobCard
  * Props:
