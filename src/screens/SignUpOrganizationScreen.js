@@ -14,14 +14,14 @@ import {
   Platform,
 } from 'react-native';
 import { SCREEN_NAMES } from '../constants/labels';
-
+//SECTOR_SIZE_OPTIONS
 const SECTOR_SIZE_OPTIONS = [
   'صغيرة',
   'متوسطة',
   'كبيرة',
   'أخرى',
 ];
-
+//ORG_SECTOR_OPTIONS
 const ORG_SECTOR_OPTIONS = [
   'حكومي',
   'خاص',
@@ -32,15 +32,15 @@ const ORG_SECTOR_OPTIONS = [
   'أخرى',
 ];
 
-
+//BackArrowIcon
 const BackArrowIcon = ({ color = '#4B3F72' }) => (
   <Text style={[styles.backArrowIcon, { color }]}>{'‹'}</Text>
 );
-
+//SelectArrowIcon
 const SelectArrowIcon = ({ color = '#8A86A3' }) => (
   <Text style={[styles.selectArrowIcon, { color }]}>{'‹'}</Text>
 );
-
+//SelectionModal
 const SelectionModal = ({
   visible,
   title,
@@ -96,7 +96,7 @@ const SelectionModal = ({
     </Modal>
   );
 };
-
+//SignUpOrganizationScreen
 const SignUpOrganizationScreen = ({ navigation }) => {
   const [form, setForm] = useState({
     representativeName: '',
@@ -108,7 +108,7 @@ const SignUpOrganizationScreen = ({ navigation }) => {
     orgSector: '',
     customOrgSector: '',
   });
-
+//sectorSizeModalVisible
   const [sectorSizeModalVisible, setSectorSizeModalVisible] = useState(false);
   const [orgSectorModalVisible, setOrgSectorModalVisible] = useState(false);
 
@@ -118,7 +118,7 @@ const SignUpOrganizationScreen = ({ navigation }) => {
       .replace(/\s{2,}/g, ' ')
       .trimStart();
   };
-
+//sanitizeName
   const sanitizeName = (value) => {
     return value
       .replace(/[^\u0600-\u06FFa-zA-Z\s]/g, '')
@@ -126,17 +126,17 @@ const SignUpOrganizationScreen = ({ navigation }) => {
       .trimStart()
       .slice(0, 60);
   };
-
+//sanitizeUsername
   const sanitizeUsername = (value) => {
     return value
       .replace(/[^a-zA-Z0-9_.]/g, '')
       .slice(0, 25);
   };
-
+//sanitizePhone
   const sanitizePhone = (value) => {
     return value.replace(/[^0-9]/g, '').slice(0, 10);
   };
-
+//sanitizeOrgName
   const sanitizeOrgName = (value) => {
     return value
       .replace(/[^\u0600-\u06FFa-zA-Z0-9\s]/g, '')
@@ -144,9 +144,9 @@ const SignUpOrganizationScreen = ({ navigation }) => {
       .trimStart()
       .slice(0, 80);
   };
-
+//update
   const update = (key, val) => setForm((prev) => ({ ...prev, [key]: val }));
-
+//validateStep1
   const validateStep1 = () => {
     const missing = [];
 
@@ -209,7 +209,7 @@ const SignUpOrganizationScreen = ({ navigation }) => {
 
     return true;
   };
-
+//handleNext
   const handleNext = () => {
   if (!validateStep1()) return;
 
@@ -255,7 +255,7 @@ const SignUpOrganizationScreen = ({ navigation }) => {
       {text} <Text style={styles.requiredMark}>*</Text>
     </Text>
   );
-
+//renderOptionalLabel
   const renderOptionalLabel = (text) => (
     <Text style={styles.fieldLabel}>
       {text} <Text style={styles.optionalText}>(اختياري)</Text>
@@ -487,7 +487,7 @@ const SignUpOrganizationScreen = ({ navigation }) => {
     </KeyboardAvoidingView>
   );
 };
-
+//styles
 const styles = StyleSheet.create({
   container: {
     flex: 1,
