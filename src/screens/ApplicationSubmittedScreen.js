@@ -11,6 +11,7 @@ import { LinearGradient } from 'expo-linear-gradient';
 import { useTheme } from '../context/ThemeContext';
 import AppHeader from '../components/AppHeader';
 
+// Success icon displayed after the application is submitted
 const SuccessIcon = ({ bg = '#EAF8F1', color = '#36B487' }) => (
   <View style={styles.successIconWrap}>
     <View style={[styles.successCircle, { backgroundColor: bg }]}>
@@ -20,9 +21,13 @@ const SuccessIcon = ({ bg = '#EAF8F1', color = '#36B487' }) => (
   </View>
 );
 
+// Main screen that confirms successful job application submission
 const ApplicationSubmittedScreen = ({ navigation }) => {
   const theme = useTheme();
+
   const darkMode = theme?.darkMode ?? false;
+
+  // Fallback colors in case theme is not fully loaded
   const colors = theme?.colors ?? {
     background: '#F3F1FA',
     card: '#FFFFFF',
@@ -31,6 +36,7 @@ const ApplicationSubmittedScreen = ({ navigation }) => {
     primary: '#4B3F72',
   };
 
+  // Centralized palette for styling (light/dark support)
   const palette = {
     pageBg: colors.background,
     cardBg: colors.card,
@@ -50,12 +56,14 @@ const ApplicationSubmittedScreen = ({ navigation }) => {
 
   return (
     <View style={[styles.container, { backgroundColor: palette.pageBg }]}>
+      
+      {/* Status bar styling based on theme */}
       <StatusBar
         barStyle={darkMode ? 'light-content' : 'dark-content'}
         backgroundColor={palette.pageBg}
       />
 
-      
+      {/* App header with notifications + profile */}
       <AppHeader
         navigation={navigation}
         leftType="bell"
@@ -64,6 +72,8 @@ const ApplicationSubmittedScreen = ({ navigation }) => {
       />
 
       <View style={styles.content}>
+
+        {/* Gradient success header */}
         <LinearGradient
           colors={palette.heroGradient}
           start={{ x: 0, y: 0 }}
@@ -71,23 +81,33 @@ const ApplicationSubmittedScreen = ({ navigation }) => {
           style={styles.heroCard}
         >
           <Text style={styles.heroTitle}>تم إرسال الطلب بنجاح</Text>
+
           <Text style={styles.heroSubTitle}>
             تم استلام طلبك وسنتواصل معك قريبًا بعد مراجعة البيانات
           </Text>
         </LinearGradient>
 
+        {/* Main confirmation card */}
         <View style={[styles.card, { backgroundColor: palette.cardBg }]}>
-          <SuccessIcon bg={palette.successBg} color={palette.successColor} />
 
+          {/* Success icon */}
+          <SuccessIcon
+            bg={palette.successBg}
+            color={palette.successColor}
+          />
+
+          {/* Main message */}
           <Text style={[styles.message, { color: palette.text }]}>
             شكرًا لك، تم تسجيل طلب التقديم الخاص بك بنجاح.
           </Text>
 
+          {/* Sub message */}
           <Text style={[styles.subMessage, { color: palette.subText }]}>
             يمكنك الآن العودة إلى الصفحة الرئيسية ومتابعة الفرص الأخرى أو انتظار
             تحديثات الجهة.
           </Text>
 
+          {/* Navigate back to home */}
           <TouchableOpacity
             style={[styles.homeBtn, { backgroundColor: palette.primary }]}
             activeOpacity={0.88}
@@ -97,6 +117,7 @@ const ApplicationSubmittedScreen = ({ navigation }) => {
               العودة للرئيسية
             </Text>
           </TouchableOpacity>
+
         </View>
       </View>
     </View>
