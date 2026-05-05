@@ -1,6 +1,4 @@
 import React, { useMemo, useState, useCallback, useContext } from 'react';
-import { showOnceLocalNotification } from '../services/notificationService';
-import AsyncStorage from '@react-native-async-storage/async-storage';
 import {
   View,
   Text,
@@ -10,20 +8,19 @@ import {
   TextInput,
   StatusBar,
 } from 'react-native';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 import { LinearGradient } from 'expo-linear-gradient';
 import { useFocusEffect } from '@react-navigation/native';
+import { collection, query, where, getDocs } from 'firebase/firestore';
+
+import { showOnceLocalNotification } from '../services/notificationService';
 import { AuthContext } from '../context/AuthContext';
 import { SCREEN_NAMES } from '../constants/labels';
 import { useTheme } from '../context/ThemeContext';
 import AppHeader from '../components/AppHeader';
 import { db } from '../services/firebase';
-import {
-  collection,
-  query,
-  where,
-  getDocs,
-} from 'firebase/firestore'; 
 
+// Custom search icon
 const SearchIcon = ({ color = '#8F8B9E' }) => (
   <View style={styles.searchIconWrap}>
     <View style={[styles.searchCircle, { borderColor: color }]} />
@@ -31,6 +28,7 @@ const SearchIcon = ({ color = '#8F8B9E' }) => (
   </View>
 );
 
+// Custom filter icon
 const FilterIcon = ({ color = '#8F8B9E' }) => (
   <View style={styles.filterWrap}>
     <View style={[styles.filterTop, { backgroundColor: color }]} />
@@ -38,6 +36,7 @@ const FilterIcon = ({ color = '#8F8B9E' }) => (
   </View>
 );
 
+// Custom location icon
 const LocationIcon = () => (
   <View style={styles.locationWrap}>
     <View style={styles.locationPin} />
@@ -47,7 +46,10 @@ const LocationIcon = () => (
 
 const EvaluationScreen = ({ navigation }) => {
   const theme = useTheme();
+  const { user } = useContext(AuthContext);
+
   const darkMode = theme?.darkMode ?? false;
+
   const colors = theme?.colors ?? {
     background: '#F3F1FA',
     card: '#FFFFFF',
@@ -56,12 +58,13 @@ const EvaluationScreen = ({ navigation }) => {
     primary: '#4B3F72',
   };
 
+  // Screen states
   const [activeTab, setActiveTab] = useState('current');
   const [search, setSearch] = useState('');
-  const { user } = useContext(AuthContext);
   const [companies, setCompanies] = useState([]);
   const [evaluations, setEvaluations] = useState([]);
 
+  // Screen color palette based on current theme
   const palette = {
     pageBg: colors.background,
     cardBg: colors.card,
@@ -81,120 +84,121 @@ const EvaluationScreen = ({ navigation }) => {
     bannerAccent: '#56B692',
   };
 
-
+  // Load jobs and user evaluations when the screen is focused
   useFocusEffect(
-  useCallback(() => {
-    const loadData = async () => {
-      try {
-        const userId = user?.uid || user?.id;
+    useCallback(() => {
+      const loadData = async () => {
+        try {
+          const userId = user?.uid || user?.id;
 
-        const jobsSnapshot = await getDocs(collection(db, 'jobs'));
-        const evaluationsSnapshot = await getDocs(
-          query(
-            collection(db, 'evaluations'),
-            where('userId', '==', userId)
-          )
-        );
+          const jobsSnapshot = await getDocs(collection(db, 'jobs'));
 
-        const jobs = jobsSnapshot.docs.map((docSnap) => ({
-          id: docSnap.id,
-          ...docSnap.data(),
-        }));
+          const evaluationsSnapshot = await getDocs(
+            query(collection(db, 'evaluations'), where('userId', '==', userId))
+          );
 
-        const evaluations = evaluationsSnapshot.docs.map((docSnap) => ({
-          id: docSnap.id,
-          ...docSnap.data(),
-        }));
+          const jobs = jobsSnapshot.docs.map((docSnap) => ({
+            id: docSnap.id,
+            ...docSnap.data(),
+          }));
 
-// 🔔 جلب الردود التي تم عرضها سابقًا
-const storageKey = `seenReplies_${userId}`;
-const stored = await AsyncStorage.getItem(storageKey);
-const seenReplies = stored ? JSON.parse(stored) : [];
+          const evaluations = evaluationsSnapshot.docs.map((docSnap) => ({
+            id: docSnap.id,
+            ...docSnap.data(),
+          }));
 
-const updatedSeen = [...seenReplies];
+          // Check which organization replies were already seen
+          const storageKey = `seenReplies_${userId}`;
+          const stored = await AsyncStorage.getItem(storageKey);
+          const seenReplies = stored ? JSON.parse(stored) : [];
+          const updatedSeen = [...seenReplies];
 
-// 🔔 إرسال إشعار فقط للجديد
-for (const evaluation of evaluations) {
-  if (evaluation.orgReply?.text && !seenReplies.includes(evaluation.id)) {
-    await showOnceLocalNotification(
-  `orgReply_${userId}_${evaluation.id}`,
-  'وصل رد من الجهة',
-  `ردت ${evaluation.orgName || evaluation.company?.name || 'الجهة'} على تقييمك.`,
-  { screen: SCREEN_NAMES.EVALUATION },
-  userId
-);
+          // Send a local notification only for new organization replies
+          for (const evaluation of evaluations) {
+            if (evaluation.orgReply?.text && !seenReplies.includes(evaluation.id)) {
+              await showOnceLocalNotification(
+                `orgReply_${userId}_${evaluation.id}`,
+                'وصل رد من الجهة',
+                `ردت ${
+                  evaluation.orgName || evaluation.company?.name || 'الجهة'
+                } على تقييمك.`,
+                { screen: SCREEN_NAMES.EVALUATION },
+                userId
+              );
 
-    updatedSeen.push(evaluation.id);
-  }
-}
-
-// 🔔 تحديث التخزين
-await AsyncStorage.setItem(storageKey, JSON.stringify(updatedSeen));
-
-        const uniqueCompanies = {};
-
-        jobs.forEach((job) => {
-          const orgId = job.orgId || job.orgName;
-
-          if (!uniqueCompanies[orgId]) {
-            uniqueCompanies[orgId] = {
-              id: orgId,
-              orgId,
-              name: job.orgName || 'شركة غير محددة',
-              orgName: job.orgName || 'شركة غير محددة',
-              city: job.location?.city || job.city || job.workEnv || 'غير محدد',
-              jobs: [job],
-            };
-          } else {
-            uniqueCompanies[orgId].jobs.push(job);
+              updatedSeen.push(evaluation.id);
+            }
           }
-        });
 
-       setCompanies(Object.values(uniqueCompanies));
-       setEvaluations(evaluations);
+          // Save seen replies locally
+          await AsyncStorage.setItem(storageKey, JSON.stringify(updatedSeen));
 
-      } catch (error) {
-        console.log('LOAD EVALUATION COMPANIES ERROR:', error);
-        setCompanies([]);
-        setEvaluations([]);
-      }
-    };
+          // Extract unique companies from jobs
+          const uniqueCompanies = {};
 
-    loadData();
-  }, [user])
-);
+          jobs.forEach((job) => {
+            const orgId = job.orgId || job.orgName;
 
-  const filteredCompanies = useMemo(() => {
-  const evaluatedIds = evaluations.map((e) => e.company?.id || e.orgId);
-
-  const base =
-    activeTab === 'current'
-      ? companies
-          .filter((company) => !evaluatedIds.includes(company.id))
-          .map((company) => ({ ...company, evaluation: null }))
-      : companies
-          .filter((company) => evaluatedIds.includes(company.id))
-          .map((company) => {
-            const evaluation = evaluations.find(
-              (e) => (e.company?.id || e.orgId) === company.id
-            );
-
-            return {
-              ...company,
-              evaluation,
-            };
+            if (!uniqueCompanies[orgId]) {
+              uniqueCompanies[orgId] = {
+                id: orgId,
+                orgId,
+                name: job.orgName || 'شركة غير محددة',
+                orgName: job.orgName || 'شركة غير محددة',
+                city: job.location?.city || job.city || job.workEnv || 'غير محدد',
+                jobs: [job],
+              };
+            } else {
+              uniqueCompanies[orgId].jobs.push(job);
+            }
           });
 
-  if (!search.trim()) return base;
+          setCompanies(Object.values(uniqueCompanies));
+          setEvaluations(evaluations);
+        } catch (error) {
+          console.log('LOAD EVALUATION COMPANIES ERROR:', error);
+          setCompanies([]);
+          setEvaluations([]);
+        }
+      };
 
-  const q = search.trim().toLowerCase();
+      loadData();
+    }, [user])
+  );
 
-  return base.filter((company) => {
-    const name = String(company.name || '').toLowerCase();
-    const city = String(company.city || '').toLowerCase();
-    return name.includes(q) || city.includes(q);
-  });
-}, [activeTab, search, companies, evaluations]);
+  // Filter companies based on selected tab and search text
+  const filteredCompanies = useMemo(() => {
+    const evaluatedIds = evaluations.map((e) => e.company?.id || e.orgId);
+
+    const base =
+      activeTab === 'current'
+        ? companies
+            .filter((company) => !evaluatedIds.includes(company.id))
+            .map((company) => ({ ...company, evaluation: null }))
+        : companies
+            .filter((company) => evaluatedIds.includes(company.id))
+            .map((company) => {
+              const evaluation = evaluations.find(
+                (e) => (e.company?.id || e.orgId) === company.id
+              );
+
+              return {
+                ...company,
+                evaluation,
+              };
+            });
+
+    if (!search.trim()) return base;
+
+    const q = search.trim().toLowerCase();
+
+    return base.filter((company) => {
+      const name = String(company.name || '').toLowerCase();
+      const city = String(company.city || '').toLowerCase();
+
+      return name.includes(q) || city.includes(q);
+    });
+  }, [activeTab, search, companies, evaluations]);
 
   return (
     <View style={[styles.container, { backgroundColor: palette.pageBg }]}>
@@ -210,7 +214,7 @@ await AsyncStorage.setItem(storageKey, JSON.stringify(updatedSeen));
         horizontalPadding={25}
       />
 
-      
+      {/* Search bar */}
       <View style={[styles.searchBar, { backgroundColor: palette.cardBg }]}>
         <View style={styles.searchRightIcon}>
           <SearchIcon color={palette.iconMuted} />
@@ -230,7 +234,7 @@ await AsyncStorage.setItem(storageKey, JSON.stringify(updatedSeen));
         </View>
       </View>
 
-      
+      {/* Main banner */}
       <LinearGradient
         colors={['#4B3F72', '#40357E', '#312767']}
         start={{ x: 0, y: 0 }}
@@ -240,12 +244,13 @@ await AsyncStorage.setItem(storageKey, JSON.stringify(updatedSeen));
         <Text style={styles.bannerText}>
           التقييم الصحيح لبيئة <Text style={styles.bannerHighlight}>شاملة</Text>
         </Text>
+
         <Text style={[styles.bannerSubText, { color: palette.bannerSubText }]}>
           شارك تجربتك وساهم في بناء بيئة عمل أكثر شمولية
         </Text>
       </LinearGradient>
 
-      
+      {/* Tabs section */}
       <View style={styles.tabRow}>
         <TouchableOpacity
           style={[styles.filterButton, { backgroundColor: palette.cardBg }]}
@@ -255,129 +260,135 @@ await AsyncStorage.setItem(storageKey, JSON.stringify(updatedSeen));
         </TouchableOpacity>
 
         <View
-  style={[
-    styles.tabs,
-    {
-      backgroundColor: palette.tabBg,
-      borderColor: palette.tabBorder,
-    },
-  ]}
->
-
-  <TouchableOpacity
-             style={[
+          style={[
+            styles.tabs,
+            {
+              backgroundColor: palette.tabBg,
+              borderColor: palette.tabBorder,
+            },
+          ]}
+        >
+          <TouchableOpacity
+            style={[
               styles.tab,
               activeTab === 'current' && { backgroundColor: palette.primary },
-                      ]}
-                     onPress={() => setActiveTab('current')}
-                     activeOpacity={0.88}
-                     >
-                    <Text
-                    style={[
-                    styles.tabText,
-                    { color: activeTab === 'current' ? '#FFFFFF' : palette.text },
-                         ]}
-                        >
-                   الحالي
+            ]}
+            onPress={() => setActiveTab('current')}
+            activeOpacity={0.88}
+          >
+            <Text
+              style={[
+                styles.tabText,
+                { color: activeTab === 'current' ? '#FFFFFF' : palette.text },
+              ]}
+            >
+              الحالي
             </Text>
-           </TouchableOpacity>
+          </TouchableOpacity>
 
-           <TouchableOpacity
-    style={[
-      styles.tab,
-      activeTab === 'previous' && { backgroundColor: palette.primary },
-    ]}
-    onPress={() => setActiveTab('previous')}
-    activeOpacity={0.88}
-  >
-    <Text
-      style={[
-        styles.tabText,
-        { color: activeTab === 'previous' ? '#FFFFFF' : palette.text },
-      ]}
-    >
-      السابق
-    </Text>
-  </TouchableOpacity>
-         </View>
+          <TouchableOpacity
+            style={[
+              styles.tab,
+              activeTab === 'previous' && { backgroundColor: palette.primary },
+            ]}
+            onPress={() => setActiveTab('previous')}
+            activeOpacity={0.88}
+          >
+            <Text
+              style={[
+                styles.tabText,
+                { color: activeTab === 'previous' ? '#FFFFFF' : palette.text },
+              ]}
+            >
+              السابق
+            </Text>
+          </TouchableOpacity>
+        </View>
       </View>
 
       <ScrollView
         showsVerticalScrollIndicator={false}
         contentContainerStyle={styles.content}
       >
+        {/* Section title */}
         <View style={styles.sectionHeader}>
           <Text style={[styles.sectionTitle, { color: palette.text }]}>
             جهات التقييم
           </Text>
+
           <Text style={[styles.sectionSubtle, { color: palette.subText }]}>
             {activeTab === 'current' ? 'الجهات الحالية' : 'الجهات السابقة'}
           </Text>
         </View>
 
+        {/* Companies list */}
         {filteredCompanies.length > 0 ? (
-  filteredCompanies.map((company) => (
-    <View
-      key={company.id}
-      style={[styles.companyCard, { backgroundColor: palette.cardBg }]}
-    >
-      <View style={styles.companyInfo}>
-        <Text style={[styles.companyName, { color: palette.text }]}>
-          {company.name}
-        </Text>
+          filteredCompanies.map((company) => (
+            <View
+              key={company.id}
+              style={[styles.companyCard, { backgroundColor: palette.cardBg }]}
+            >
+              <View style={styles.companyInfo}>
+                <Text style={[styles.companyName, { color: palette.text }]}>
+                  {company.name}
+                </Text>
 
-        <View style={styles.locationRow}>
-          <LocationIcon />
-          <Text style={[styles.companyCity, { color: palette.subText }]}>
-            {company.city}
-          </Text>
-        </View>
+                <View style={styles.locationRow}>
+                  <LocationIcon />
 
-        {activeTab === 'previous' && company.evaluation?.orgReply?.text && (
-          <View style={styles.replyBox}>
-            <Text style={styles.replyTitle}>رد الجهة</Text>
-            <Text style={styles.replyText}>
-              {company.evaluation.orgReply.text}
+                  <Text style={[styles.companyCity, { color: palette.subText }]}>
+                    {company.city}
+                  </Text>
+                </View>
+
+                {activeTab === 'previous' && company.evaluation?.orgReply?.text && (
+                  <View style={styles.replyBox}>
+                    <Text style={styles.replyTitle}>رد الجهة</Text>
+
+                    <Text style={styles.replyText}>
+                      {company.evaluation.orgReply.text}
+                    </Text>
+                  </View>
+                )}
+              </View>
+
+              <TouchableOpacity
+                style={[styles.addBtn, { backgroundColor: palette.primary }]}
+                onPress={() =>
+                  navigation.navigate(SCREEN_NAMES.EVALUATION_FORM, {
+                    company,
+                    mode: activeTab,
+                    evaluation: company.evaluation,
+                  })
+                }
+                activeOpacity={0.88}
+              >
+                <Text style={styles.addBtnText}>
+                  {activeTab === 'current' ? 'أضف تقييمك' : 'الوصول إلى تقييمك'}
+                </Text>
+              </TouchableOpacity>
+            </View>
+          ))
+        ) : (
+          <View
+            style={[
+              styles.emptyCard,
+              {
+                backgroundColor: palette.emptyBg,
+                borderColor: palette.emptyBorder,
+              },
+            ]}
+          >
+            <Text style={[styles.emptyTitle, { color: palette.text }]}>
+              لا توجد نتائج مطابقة
+            </Text>
+
+            <Text style={[styles.emptySubText, { color: palette.subText }]}>
+              جرّب البحث باسم جهة أخرى أو غيّر نوع القائمة من الحالي إلى السابق.
             </Text>
           </View>
         )}
-      </View>
 
-      <TouchableOpacity
-        style={[styles.addBtn, { backgroundColor: palette.primary }]}
-        onPress={() =>
-          navigation.navigate(SCREEN_NAMES.EVALUATION_FORM, {
-            company,
-            mode: activeTab,
-            evaluation: company.evaluation,
-          })
-        }
-        activeOpacity={0.88}
-      >
-        <Text style={styles.addBtnText}>
-          {activeTab === 'current' ? 'أضف تقييمك' : 'الوصول إلى تقييمك'}
-        </Text>
-      </TouchableOpacity>
-    </View>
-  ))
-) : (
-  <View
-    style={[
-      styles.emptyCard,
-      {
-        backgroundColor: palette.emptyBg,
-        borderColor: palette.emptyBorder,
-      },
-    ]}
-  >
-    <Text style={[styles.emptyTitle, { color: palette.text }]}>
-      لا توجد نتائج مطابقة
-    </Text>
-    <Text style={[styles.emptySubText, { color: palette.subText }]}>
-      جرّب البحث باسم جهة أخرى أو غيّر نوع القائمة من الحالي إلى السابق.
-    </Text>
-  </View>
-)}
         <View style={{ height: 30 }} />
       </ScrollView>
     </View>
@@ -600,8 +611,8 @@ const styles = StyleSheet.create({
   },
 
   companyInfo: {
-   alignItems: 'flex-end',
-   width: '100%',
+    alignItems: 'flex-end',
+    width: '100%',
   },
 
   companyName: {
@@ -656,13 +667,13 @@ const styles = StyleSheet.create({
   },
 
   addBtn: {
-  marginTop: 14,
-  borderRadius: 14,
-  paddingVertical: 12,
-  paddingHorizontal: 16,
-  width: '100%',
-  alignItems: 'center',
-},
+    marginTop: 14,
+    borderRadius: 14,
+    paddingVertical: 12,
+    paddingHorizontal: 16,
+    width: '100%',
+    alignItems: 'center',
+  },
 
   addBtnText: {
     color: '#FFFFFF',
@@ -694,31 +705,31 @@ const styles = StyleSheet.create({
   },
 
   replyBox: {
-  width: '100%',
-  backgroundColor: '#F8F6FC',
-  borderRadius: 14,
-  padding: 12,
-  marginTop: 12,
-  borderWidth: 1,
-  borderColor: '#ECE7F7',
-},
+    width: '100%',
+    backgroundColor: '#F8F6FC',
+    borderRadius: 14,
+    padding: 12,
+    marginTop: 12,
+    borderWidth: 1,
+    borderColor: '#ECE7F7',
+  },
 
-replyTitle: {
-  fontSize: 13,
-  fontWeight: '800',
-  color: '#4B3F72',
-  textAlign: 'right',
-  writingDirection: 'rtl',
-  marginBottom: 4,
-},
+  replyTitle: {
+    fontSize: 13,
+    fontWeight: '800',
+    color: '#4B3F72',
+    textAlign: 'right',
+    writingDirection: 'rtl',
+    marginBottom: 4,
+  },
 
-replyText: {
-  fontSize: 13,
-  color: '#6E6A8A',
-  textAlign: 'right',
-  writingDirection: 'rtl',
-  lineHeight: 21,
-},
+  replyText: {
+    fontSize: 13,
+    color: '#6E6A8A',
+    textAlign: 'right',
+    writingDirection: 'rtl',
+    lineHeight: 21,
+  },
 });
 
 export default EvaluationScreen;
