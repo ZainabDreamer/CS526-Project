@@ -82,15 +82,15 @@ const ForgotPasswordScreen = () => {
 
               <View style={styles.inputWrapper}>
                 <TextInput
-  value={email}
-  onChangeText={setEmail}
-  placeholder="example@email.com"
-  placeholderTextColor="#A7A7A7"
-  style={styles.input}
-  keyboardType="email-address"
-  autoCapitalize="none"
-  autoCorrect={false}
-/>
+                 value={email}
+                 onChangeText={setEmail}
+                 placeholder="example@email.com"
+                 placeholderTextColor="#A7A7A7"
+                 style={styles.input}
+                 keyboardType="email-address"
+                 autoCapitalize="none"
+                 autoCorrect={false}
+                  />
               </View>
 
               <CustomButton
