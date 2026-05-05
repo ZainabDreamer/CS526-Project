@@ -1,3 +1,4 @@
+// ================== IMPORTS ==================
 import React, { useContext } from 'react';
 import {
   View,
@@ -14,7 +15,7 @@ import { SCREEN_NAMES } from '../constants/labels';
 import { useTheme } from '../context/ThemeContext';
 import { AuthContext } from '../context/AuthContext';
 
-
+// ================== ICON COMPONENTS ==================
 const BackArrowIcon = ({ color = '#1F1655' }) => (
   <Text style={[styles.backArrowIcon, { color }]}>{'‹'}</Text>
 );
@@ -22,7 +23,6 @@ const BackArrowIcon = ({ color = '#1F1655' }) => (
 const ForwardArrowIcon = ({ color = '#B0AEBB' }) => (
   <Text style={[styles.forwardArrowIcon, { color }]}>{'‹'}</Text>
 );
-
 
 const ProfileIcon = ({ color = '#1F1655' }) => (
   <View style={styles.profileMiniWrap}>
@@ -76,6 +76,7 @@ const LogoutIcon = ({ color = '#D94B4B' }) => (
     />
   </View>
 );
+
 const BookmarkIcon = ({ color = '#1F1655' }) => (
   <View style={styles.bookmarkWrap}>
     <View style={[styles.bookmarkBody, { borderColor: color }]} />
@@ -83,6 +84,7 @@ const BookmarkIcon = ({ color = '#1F1655' }) => (
   </View>
 );
 
+// ================== MAIN SCREEN ==================
 const ProfileScreen = ({ navigation }) => {
   const { user, logout } = useContext(AuthContext);
   const theme = useTheme();
@@ -96,6 +98,7 @@ const ProfileScreen = ({ navigation }) => {
     primary: '#4B3F72',
   };
 
+  // ================== THEME PALETTE ==================
   const palette = {
     pageBg: colors.background,
     cardBg: colors.card,
@@ -114,9 +117,11 @@ const ProfileScreen = ({ navigation }) => {
     logoutBg: darkMode ? '#33232A' : '#FBEDEE',
   };
 
+  // ================== USER ROLE CHECK ==================
 const isOrganization = user?.role === 'organization';
 const isJobSeeker = user?.role === 'jobSeeker';
 
+// ================== PROFILE ITEMS ==================
 const profileItems = [
   { key: 'data', label: 'بياناتي', icon: ProfileIcon },
 
@@ -138,6 +143,7 @@ const profileItems = [
   { key: 'values', label: 'قيم التطبيق', icon: StarIcon },
 ];
 
+  // ================== PROFILE ITEM NAVIGATION ==================
   const handleItem = (key) => {
 
     if (key === 'savedJobs') {
@@ -182,6 +188,7 @@ const profileItems = [
     }
   };
 
+  // ================== LOGOUT HANDLER ==================
   const handleLogout = () => {
   Alert.alert(
     'تسجيل الخروج',
@@ -200,6 +207,7 @@ const profileItems = [
   );
 };
 
+  // ================== SCREEN UI ==================
   return (
     <View style={[styles.container, { backgroundColor: palette.pageBg }]}>
       <StatusBar
@@ -207,6 +215,7 @@ const profileItems = [
         backgroundColor={palette.pageBg}
       />
 
+      {/* Header section */}
       <View style={styles.headerRow}>
         <TouchableOpacity
           style={[styles.iconButton, { backgroundColor: palette.headerBtnBg }]}
@@ -229,6 +238,7 @@ const profileItems = [
         contentContainerStyle={styles.content}
         showsVerticalScrollIndicator={false}
       >
+        {/* Profile title */}
         <View style={styles.sectionHeader}>
           <View />
           <Text style={[styles.sectionTitle, { color: palette.text }]}>
@@ -236,6 +246,7 @@ const profileItems = [
           </Text>
         </View>
 
+        {/* Profile options card */}
         <View style={[styles.card, { backgroundColor: palette.cardBg }]}>
           {profileItems.map((item, index) => {
             const Icon = item.icon;
@@ -277,6 +288,7 @@ const profileItems = [
             );
           })}
 
+          {/* Dark mode switch */}
           <View
             style={[
               styles.row,
@@ -314,6 +326,7 @@ const profileItems = [
           </View>
         </View>
 
+        {/* Logout card */}
         <View
           style={[
             styles.card,
@@ -354,6 +367,7 @@ const profileItems = [
 
 export default ProfileScreen;
 
+// ================== STYLES ==================
 const styles = StyleSheet.create({
   container: {
     flex: 1,
