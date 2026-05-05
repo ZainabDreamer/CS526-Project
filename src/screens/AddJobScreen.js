@@ -156,8 +156,6 @@ const AddJobScreen = ({ navigation, route }) => {
       activeTabBg: '#4B3F72',
       activeTabText: '#FFFFFF',
       avatarBg: darkMode ? '#2A273A' : '#F0EEF7',
-      heroStart: '#4B3F72',
-      heroEnd: '#40357E',
       helperBg: darkMode ? '#2A273A' : '#F5F3FB',
       helperBorder: darkMode ? '#3A3650' : '#EEEAF8',
     }),
@@ -213,10 +211,37 @@ const AddJobScreen = ({ navigation, route }) => {
       return;
     }
 
+    const currentOrgId =
+      user?.uid ||
+      user?.id ||
+      user?.userId ||
+      user?.organizationId ||
+      user?.email ||
+      null;
+
+    const currentOrgName =
+      user?.orgName ||
+      user?.organizationName ||
+      user?.companyName ||
+      user?.name ||
+      user?.fullName ||
+      user?.email ||
+      'منظمة';
+
+    if (!currentOrgId) {
+      Alert.alert('خطأ', 'تعذر تحديد حساب المنظمة.');
+      return;
+    }
+
     const payload = {
-      orgId: user?.uid || user?.id || null,
-      orgName: user?.orgName || user?.name || 'منظمة',
-      company: user?.orgName || user?.name || 'منظمة',
+      orgId: currentOrgId,
+      organizationId: currentOrgId,
+      companyId: currentOrgId,
+      orgEmail: user?.email || null,
+
+      orgName: currentOrgName,
+      company: currentOrgName,
+      companyName: currentOrgName,
 
       title: form.title.trim(),
       description: form.description.trim(),
@@ -244,7 +269,6 @@ const AddJobScreen = ({ navigation, route }) => {
       longitude: form.location?.longitude || null,
 
       inclusivityScore: Number(user?.inclusivityScore || 0),
-
       status: 'active',
     };
 
@@ -261,6 +285,7 @@ const AddJobScreen = ({ navigation, route }) => {
         await addDoc(collection(db, 'jobs'), {
           ...payload,
           createdAt: serverTimestamp(),
+          updatedAt: serverTimestamp(),
         });
 
         Alert.alert('تم', 'تمت إضافة الفرصة الوظيفية بنجاح');
@@ -429,7 +454,7 @@ const AddJobScreen = ({ navigation, route }) => {
             label="المؤهلات المطلوبة"
             value={form.qualifications}
             onChangeText={(v) => update('qualifications', v)}
-            placeholder="اكتب المؤهلات والخبرات المطلوبة"
+            placeholder="اكتب كل مؤهل في سطر منفصل"
             multiline
             numberOfLines={4}
             maxLength={400}
@@ -475,7 +500,7 @@ const AddJobScreen = ({ navigation, route }) => {
             label="المميزات"
             value={form.benefits}
             onChangeText={(v) => update('benefits', v)}
-            placeholder="مثال: تأمين طبي، تدريب، مرونة"
+            placeholder="اكتبي كل ميزة في سطر منفصل"
             multiline
             numberOfLines={3}
             maxLength={300}
@@ -500,15 +525,13 @@ const AddJobScreen = ({ navigation, route }) => {
           </Text>
 
           <TouchableOpacity
-            style={{
-              height: 54,
-              borderRadius: 18,
-              borderWidth: 1,
-              borderColor: palette.border,
-              justifyContent: 'center',
-              paddingHorizontal: 16,
-              backgroundColor: palette.cardBg,
-            }}
+            style={[
+              styles.locationButton,
+              {
+                borderColor: palette.border,
+                backgroundColor: palette.cardBg,
+              },
+            ]}
             onPress={() =>
               navigation.navigate('PickLocation', {
                 onSelect: (loc) => {
@@ -520,7 +543,7 @@ const AddJobScreen = ({ navigation, route }) => {
               })
             }
           >
-            <Text style={{ textAlign: 'right', color: palette.text }}>
+            <Text style={[styles.locationButtonText, { color: palette.text }]}>
               {form.location
                 ? `📍 ${Number(form.location.latitude).toFixed(3)}, ${Number(
                     form.location.longitude
@@ -856,6 +879,21 @@ const styles = StyleSheet.create({
 
   halfField: {
     flex: 1,
+  },
+
+  locationButton: {
+    height: 54,
+    borderRadius: 18,
+    borderWidth: 1,
+    justifyContent: 'center',
+    paddingHorizontal: 16,
+  },
+
+  locationButtonText: {
+    textAlign: 'right',
+    writingDirection: 'rtl',
+    fontSize: 14,
+    fontWeight: '700',
   },
 
   submitBtn: {
