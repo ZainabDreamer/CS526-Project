@@ -9,17 +9,13 @@ import {
   StatusBar,
 } from 'react-native';
 import { useFocusEffect } from '@react-navigation/native';
+import { collection, getDocs, query, where } from 'firebase/firestore';
+
 import { SCREEN_NAMES } from '../constants/labels';
 import CompanyCard from '../components/CompanyCard';
 import { useTheme } from '../context/ThemeContext';
 import AppHeader from '../components/AppHeader';
 import { db } from '../services/firebase';
-import {
-  collection,
-  getDocs,
-  query,
-  where,
-} from 'firebase/firestore';
 
 const FILTER_TABS = [
   { key: 'jobs', label: 'وظائف' },
@@ -28,6 +24,7 @@ const FILTER_TABS = [
   { key: 'map', label: 'الخريطة' },
 ];
 
+// Custom search icon
 const SearchIcon = ({ color = '#8F8B9E' }) => (
   <View style={styles.searchIconWrap}>
     <View style={[styles.searchCircle, { borderColor: color }]} />
@@ -35,6 +32,7 @@ const SearchIcon = ({ color = '#8F8B9E' }) => (
   </View>
 );
 
+// Custom filter icon
 const FilterIcon = ({ color = '#8F8B9E' }) => (
   <View style={styles.filterWrap}>
     <View style={[styles.filterTop, { backgroundColor: color }]} />
@@ -44,115 +42,125 @@ const FilterIcon = ({ color = '#8F8B9E' }) => (
 
 const CompaniesScreen = ({ navigation }) => {
   const { colors, darkMode } = useTheme();
+
+  // Screen states
   const [activeFilter, setActiveFilter] = useState('companies');
   const [search, setSearch] = useState('');
   const [companies, setCompanies] = useState([]);
 
-useFocusEffect(
-  useCallback(() => {
-    const load = async () => {
-      try {
-        const jobsSnapshot = await getDocs(collection(db, 'jobs'));
+  // Load companies from Firebase whenever the screen is focused
+  useFocusEffect(
+    useCallback(() => {
+      const load = async () => {
+        try {
+          const jobsSnapshot = await getDocs(collection(db, 'jobs'));
 
-        const usersQuery = query(
-          collection(db, 'users'),
-          where('role', '==', 'organization')
-        );
-
-        const usersSnapshot = await getDocs(usersQuery);
-
-        const jobs = jobsSnapshot.docs.map((docSnap) => ({
-          id: docSnap.id,
-          ...docSnap.data(),
-        }));
-
-        const organizations = usersSnapshot.docs.map((docSnap) => ({
-          id: docSnap.id,
-          uid: docSnap.id,
-          ...docSnap.data(),
-        }));
-
-        const uniqueCompanies = {};
-
-        jobs.forEach((job) => {
-          const org = organizations.find(
-            (u) =>
-              u.id === job.orgId ||
-              u.uid === job.orgId ||
-              u.orgName === job.orgName ||
-              u.name === job.orgName
+          const usersQuery = query(
+            collection(db, 'users'),
+            where('role', '==', 'organization')
           );
 
-          const orgId = job.orgId || org?.id || job.orgName;
+          const usersSnapshot = await getDocs(usersQuery);
 
-          if (!uniqueCompanies[orgId]) {
-            uniqueCompanies[orgId] = {
-              id: orgId,
+          const jobs = jobsSnapshot.docs.map((docSnap) => ({
+            id: docSnap.id,
+            ...docSnap.data(),
+          }));
 
-              name: org?.orgName || org?.name || job.orgName || 'شركة غير محددة',
+          const organizations = usersSnapshot.docs.map((docSnap) => ({
+            id: docSnap.id,
+            uid: docSnap.id,
+            ...docSnap.data(),
+          }));
 
-              orgSector: org?.orgSector || job.orgSector || '',
-              sector: org?.orgSector || job.sector || '',
+          const uniqueCompanies = {};
 
-              city: org?.city || job.city || '',
-              district: org?.district || job.district || '',
-              location:
-                org?.city ||
-                job.location?.city ||
-                job.city ||
-                job.workEnv ||
-                '',
+          // Build unique companies from jobs and organization users
+          jobs.forEach((job) => {
+            const org = organizations.find(
+              (u) =>
+                u.id === job.orgId ||
+                u.uid === job.orgId ||
+                u.orgName === job.orgName ||
+                u.name === job.orgName
+            );
 
-              description: org?.description || '',
-              accessibilitySupport: org?.accessibilitySupport || '',
-              workEnvironment: org?.workEnvironment || '',
-              contactEmail: org?.contactEmail || org?.email || '',
+            const orgId = job.orgId || org?.id || job.orgName;
 
-              hasMowaamah: org?.hasMowaamah || '',
-              hasCertificate:
-                org?.hasMowaamah === 'نعم' || job.hasCertificate === true,
+            if (!uniqueCompanies[orgId]) {
+              uniqueCompanies[orgId] = {
+                id: orgId,
+                name:
+                  org?.orgName ||
+                  org?.name ||
+                  job.orgName ||
+                  'شركة غير محددة',
 
-              inclusivity: Number(
-                org?.inclusivityScore ||
-                  job.inclusivityScore ||
-                  job.inclusivity ||
-                  job.inclusionRate ||
-                  0
-              ),
+                orgSector: org?.orgSector || job.orgSector || '',
+                sector: org?.orgSector || job.sector || '',
 
-              jobsCount: 1,
-              jobs: [
-                {
-                  ...job,
-                  inclusivity: Number(
-                    org?.inclusivityScore ||
-                      job.inclusivityScore ||
-                      job.inclusivity ||
-                      job.inclusionRate ||
-                      0
-                  ),
-                },
-              ],
-            };
-          } else {
-            uniqueCompanies[orgId].jobsCount += 1;
-            uniqueCompanies[orgId].jobs.push({
-              ...job,
-              inclusivity: uniqueCompanies[orgId].inclusivity,
-            });
-          }
-        });
+                city: org?.city || job.city || '',
+                district: org?.district || job.district || '',
+                location:
+                  org?.city ||
+                  job.location?.city ||
+                  job.city ||
+                  job.workEnv ||
+                  '',
 
-        setCompanies(Object.values(uniqueCompanies));
-      } catch (error) {
-        console.log('LOAD COMPANIES FIREBASE ERROR:', error);
-        setCompanies([]);
-      }
-    };
+                description: org?.description || '',
+                accessibilitySupport: org?.accessibilitySupport || '',
+                workEnvironment: org?.workEnvironment || '',
+                contactEmail: org?.contactEmail || org?.email || '',
 
-    load();
-  }, [])
-);
+                hasMowaamah: org?.hasMowaamah || '',
+                hasCertificate:
+                  org?.hasMowaamah === 'نعم' || job.hasCertificate === true,
+
+                inclusivity: Number(
+                  org?.inclusivityScore ||
+                    job.inclusivityScore ||
+                    job.inclusivity ||
+                    job.inclusionRate ||
+                    0
+                ),
+
+                jobsCount: 1,
+                jobs: [
+                  {
+                    ...job,
+                    inclusivity: Number(
+                      org?.inclusivityScore ||
+                        job.inclusivityScore ||
+                        job.inclusivity ||
+                        job.inclusionRate ||
+                        0
+                    ),
+                  },
+                ],
+              };
+            } else {
+              uniqueCompanies[orgId].jobsCount += 1;
+
+              uniqueCompanies[orgId].jobs.push({
+                ...job,
+                inclusivity: uniqueCompanies[orgId].inclusivity,
+              });
+            }
+          });
+
+          setCompanies(Object.values(uniqueCompanies));
+        } catch (error) {
+          console.log('LOAD COMPANIES FIREBASE ERROR:', error);
+          setCompanies([]);
+        }
+      };
+
+      load();
+    }, [])
+  );
+
+  // Screen color palette based on current theme
   const palette = {
     pageBg: colors.background,
     cardBg: colors.card,
@@ -164,17 +172,21 @@ useFocusEffect(
     heroBorder: darkMode ? '#3A3650' : '#F0ECF8',
   };
 
+  // Filter companies by name or location
   const filtered = useMemo(() => {
     const q = search.trim().toLowerCase();
+
     if (!q) return companies;
 
     return companies.filter((c) => {
       const name = String(c.name || '').toLowerCase();
       const location = String(c.location || '').toLowerCase();
+
       return name.includes(q) || location.includes(q);
     });
   }, [search, companies]);
 
+  // Handle top tab navigation
   const handleTabPress = (key) => {
     setActiveFilter(key);
 
@@ -194,6 +206,7 @@ useFocusEffect(
     }
   };
 
+  // Header section for FlatList
   const renderHeader = () => (
     <>
       <AppHeader
@@ -203,6 +216,7 @@ useFocusEffect(
         horizontalPadding={25}
       />
 
+      {/* Search bar */}
       <View style={[styles.searchBar, { backgroundColor: palette.cardBg }]}>
         <View style={styles.searchRightIcon}>
           <SearchIcon color={palette.searchIcon} />
@@ -222,6 +236,7 @@ useFocusEffect(
         </View>
       </View>
 
+      {/* Filter tabs */}
       <View style={styles.tabsContainer}>
         <View style={styles.tabsRow}>
           {FILTER_TABS.map((tab, index) => {
@@ -256,6 +271,7 @@ useFocusEffect(
         </View>
       </View>
 
+      {/* Section title */}
       <View style={styles.sectionHeader}>
         <Text style={[styles.sectionTitle, { color: palette.text }]}>
           الشركات
@@ -277,20 +293,21 @@ useFocusEffect(
         barStyle={darkMode ? 'light-content' : 'dark-content'}
         backgroundColor={palette.pageBg}
       />
-            <FlatList
-            data={filtered}
-            keyExtractor={(item) => item.id}
-             renderItem={({ item }) => (
-              <CompanyCard
-              company={item}
-              onPress={() =>
+
+      <FlatList
+        data={filtered}
+        keyExtractor={(item) => item.id}
+        renderItem={({ item }) => (
+          <CompanyCard
+            company={item}
+            onPress={() =>
               navigation.navigate(SCREEN_NAMES.COMPANY_DETAILS, {
-              company: item,
-            })
-          }
-          style={styles.card}
-        />
-       )}
+                company: item,
+              })
+            }
+            style={styles.card}
+          />
+        )}
         ListHeaderComponent={renderHeader}
         contentContainerStyle={styles.list}
         showsVerticalScrollIndicator={false}
@@ -434,7 +451,7 @@ const styles = StyleSheet.create({
     fontWeight: '800',
     writingDirection: 'rtl',
     textAlign: 'right',
-    paddingHorizontal: 10
+    paddingHorizontal: 10,
   },
 
   mapLink: {
