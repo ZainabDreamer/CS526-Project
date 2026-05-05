@@ -1,3 +1,4 @@
+// ================== IMPORTS ==================
 import React, { useMemo, useState, useCallback, useContext } from 'react';
 import {
   View,
@@ -20,12 +21,15 @@ import {
   getDocs,
 } from 'firebase/firestore';
 
+// ================== TABS ==================
 const TABS = [
   { key: 'dashboard', label: 'الشمولية' },
   { key: 'evaluations', label: 'التقييمات' },
   { key: 'interviews', label: 'المقابلات' },
   { key: 'orgJobs', label: 'فُرصي' },
 ];
+
+// ================== ICONS ==================
 const BellIcon = ({ color = '#1F1655' }) => (
   <View style={styles.bellShapeWrap}>
     <View style={[styles.bellTop, { backgroundColor: color }]} />
@@ -33,31 +37,39 @@ const BellIcon = ({ color = '#1F1655' }) => (
     <View style={[styles.bellClapper, { backgroundColor: color }]} />
   </View>
 );
+
 const UserAvatarIcon = ({ color = '#1F1655' }) => (
   <View style={styles.avatarMiniWrap}>
     <View style={[styles.avatarMiniHead, { backgroundColor: color }]} />
     <View style={[styles.avatarMiniBody, { backgroundColor: color }]} />
   </View>
 );
+
 const SearchIcon = ({ color = '#8F8B9E' }) => (
   <View style={styles.searchIconWrap}>
     <View style={[styles.searchCircle, { borderColor: color }]} />
     <View style={[styles.searchHandle, { backgroundColor: color }]} />
   </View>
 );
+
 const FilterIcon = ({ color = '#8F8B9E' }) => (
   <View style={styles.filterWrap}>
     <View style={[styles.filterTop, { backgroundColor: color }]} />
     <View style={[styles.filterStem, { backgroundColor: color }]} />
   </View>
 );
+
+// ================== MAIN SCREEN ==================
 const AccessibilityIssuesScreen = ({ navigation }) => {
   const { colors, darkMode } = useTheme();
   const { user } = useContext(AuthContext);
+
+  // ================== STATE ==================
   const [activeTab, setActiveTab] = useState('new');
   const [search, setSearch] = useState('');
   const [issues, setIssues] = useState([]);
 
+  // ================== THEME PALETTE ==================
   const palette = {
     pageBg: colors.background,
     cardBg: colors.card,
@@ -76,6 +88,7 @@ const AccessibilityIssuesScreen = ({ navigation }) => {
     avatarBg: darkMode ? '#2A273A' : '#F0EEF7',
   };
 
+  // ================== LOAD ISSUES ==================
   useFocusEffect(
   useCallback(() => {
     const loadIssues = async () => {
@@ -147,6 +160,8 @@ const AccessibilityIssuesScreen = ({ navigation }) => {
     loadIssues();
   }, [user])
 );
+
+  // ================== FILTER ISSUES ==================
    const filteredIssues = useMemo(() => {
   const base =
     activeTab === 'previous'
@@ -165,7 +180,7 @@ const AccessibilityIssuesScreen = ({ navigation }) => {
   });
 }, [activeTab, search, issues]);
 
-
+  // ================== MAIN TAB NAVIGATION ==================
   const handleMainTab = (key) => {
     if (key === 'dashboard') {
       navigation.navigate(SCREEN_NAMES.ORG_DASHBOARD);
@@ -180,6 +195,8 @@ const AccessibilityIssuesScreen = ({ navigation }) => {
   return;
 }
   };
+
+  // ================== SCREEN UI ==================
   return (
     <View style={[styles.container, { backgroundColor: palette.pageBg }]}>
       <StatusBar
@@ -190,7 +207,7 @@ const AccessibilityIssuesScreen = ({ navigation }) => {
         showsVerticalScrollIndicator={false}
         contentContainerStyle={styles.scrollContent}
       >
-        
+
       <View style={styles.headerRow}>
 
       <TouchableOpacity
@@ -201,16 +218,14 @@ const AccessibilityIssuesScreen = ({ navigation }) => {
         <UserAvatarIcon color={palette.iconColor} />
        </TouchableOpacity>
 
-  
        <Image
        source={require('../../assets/logo2.png')}
        style={styles.topLogo}
       resizeMode="contain"
       />
 
-
   <TouchableOpacity
-  
+
   onPress={() => navigation.navigate(SCREEN_NAMES.NOTIFICATIONS)}
   activeOpacity={0.85}
 >
@@ -218,13 +233,13 @@ const AccessibilityIssuesScreen = ({ navigation }) => {
 </TouchableOpacity>
 
 </View>
-        
+
         <View style={styles.welcomeBlock}>
           <Text style={[styles.welcomeHint, { color: palette.subText }]}>
             متابعة الملاحظات والتقييمات
           </Text>
         </View>
-       
+
         <View style={[styles.searchBar, { backgroundColor: palette.cardBg }]}>
           <View style={styles.searchRightIcon}>
             <SearchIcon color={palette.searchIcon} />
@@ -241,7 +256,7 @@ const AccessibilityIssuesScreen = ({ navigation }) => {
             <FilterIcon color={palette.searchIcon} />
           </View>
         </View>
-       
+
         <View style={styles.tabsContainer}>
           <View style={styles.tabsRow}>
             {TABS.map((tab) => {
@@ -275,7 +290,7 @@ const AccessibilityIssuesScreen = ({ navigation }) => {
             })}
           </View>
         </View>
-        
+
         <View
           style={[
             styles.subTabsOuter,
@@ -332,6 +347,7 @@ const AccessibilityIssuesScreen = ({ navigation }) => {
             </Text>
           </TouchableOpacity>
         </View>
+
         {/* List */}
         <View style={styles.cardsList}>
           {filteredIssues.map((issue) => (
@@ -372,6 +388,8 @@ const AccessibilityIssuesScreen = ({ navigation }) => {
     </View>
   );
 };
+
+// ================== STYLES ==================
 const styles = StyleSheet.create({
   container: {
     flex: 1,
@@ -626,4 +644,5 @@ const styles = StyleSheet.create({
     marginTop: 1,
   },
 });
+
 export default AccessibilityIssuesScreen;
