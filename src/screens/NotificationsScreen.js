@@ -9,6 +9,7 @@ import {
   Image,
 } from 'react-native';
 import { useFocusEffect } from '@react-navigation/native';
+
 import { useTheme } from '../context/ThemeContext';
 import { AuthContext } from '../context/AuthContext';
 import {
@@ -17,6 +18,7 @@ import {
   markAllNotificationsAsRead,
 } from '../services/notificationService';
 
+// Custom back arrow icon
 const BackArrowIcon = ({ color = '#1F1655' }) => (
   <Text style={{ color, fontSize: 28, fontWeight: '800' }}>{'‹'}</Text>
 );
@@ -24,10 +26,13 @@ const BackArrowIcon = ({ color = '#1F1655' }) => (
 const NotificationsScreen = ({ navigation }) => {
   const { user } = useContext(AuthContext);
   const { colors, darkMode } = useTheme();
+
+  // Notifications state
   const [notifications, setNotifications] = useState([]);
 
   const userId = user?.uid || user?.id;
 
+  // Screen color palette based on current theme
   const palette = {
     bg: colors.background,
     card: colors.card,
@@ -38,17 +43,20 @@ const NotificationsScreen = ({ navigation }) => {
     unreadBg: darkMode ? '#2A273A' : '#F4F1FF',
   };
 
+  // Load saved notifications from local storage
   const loadNotifications = async () => {
     const data = await getStoredNotifications(userId);
     setNotifications(data);
   };
 
+  // Reload notifications every time screen is focused
   useFocusEffect(
     useCallback(() => {
       loadNotifications();
     }, [userId])
   );
 
+  // Mark notification as read and navigate to its related screen
   const handleOpenNotification = async (item) => {
     await markNotificationAsRead(userId, item.id);
     await loadNotifications();
@@ -60,6 +68,7 @@ const NotificationsScreen = ({ navigation }) => {
     }
   };
 
+  // Mark all notifications as read
   const handleMarkAllRead = async () => {
     await markAllNotificationsAsRead(userId);
     await loadNotifications();
@@ -72,6 +81,7 @@ const NotificationsScreen = ({ navigation }) => {
         backgroundColor={palette.bg}
       />
 
+      {/* Header */}
       <View style={styles.headerRow}>
         <TouchableOpacity
           style={[styles.iconButton, { backgroundColor: palette.card }]}
@@ -91,14 +101,16 @@ const NotificationsScreen = ({ navigation }) => {
       </View>
 
       <ScrollView contentContainerStyle={styles.content}>
-       <View style={styles.titleRow}>
-  <TouchableOpacity onPress={handleMarkAllRead} activeOpacity={0.85}>
-    <Text style={[styles.title, { color: palette.primary }]}>
-        الإشعارات
-    </Text>
-  </TouchableOpacity>
-</View>
+        {/* Page title / mark all as read action */}
+        <View style={styles.titleRow}>
+          <TouchableOpacity onPress={handleMarkAllRead} activeOpacity={0.85}>
+            <Text style={[styles.title, { color: palette.primary }]}>
+              الإشعارات
+            </Text>
+          </TouchableOpacity>
+        </View>
 
+        {/* Notifications list */}
         {notifications.length > 0 ? (
           notifications.map((item) => (
             <TouchableOpacity
@@ -143,6 +155,7 @@ const NotificationsScreen = ({ navigation }) => {
             <Text style={[styles.emptyTitle, { color: palette.text }]}>
               لا توجد إشعارات حالياً
             </Text>
+
             <Text style={[styles.emptyText, { color: palette.subText }]}>
               ستظهر هنا إشعارات المقابلات، التقييمات، والردود الجديدة.
             </Text>
