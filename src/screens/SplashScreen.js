@@ -125,7 +125,7 @@ const styles = StyleSheet.create({
   greenText: {
     color: '#36B487', 
   },
-
+  
   logoWrapper: {
     position: 'absolute',
     bottom: 34,
