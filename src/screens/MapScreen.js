@@ -1,6 +1,4 @@
 import React, { useMemo, useState, useCallback, useRef } from 'react';
-import * as Location from 'expo-location';
-import { useFocusEffect } from '@react-navigation/native';
 import {
   View,
   Text,
@@ -12,12 +10,16 @@ import {
   Linking,
   Alert,
 } from 'react-native';
+import * as Location from 'expo-location';
+import { useFocusEffect } from '@react-navigation/native';
 import MapView, { Marker } from 'react-native-maps';
+import { collection, getDocs, orderBy, query } from 'firebase/firestore';
+
 import { SCREEN_NAMES } from '../constants/labels';
 import { useTheme } from '../context/ThemeContext';
 import { db } from '../services/firebase';
-import { collection, getDocs, orderBy, query } from 'firebase/firestore';
 
+// Custom bell icon
 const BellIcon = ({ color = '#1F1655' }) => (
   <View style={styles.bellShapeWrap}>
     <View style={[styles.bellTop, { backgroundColor: color }]} />
@@ -26,6 +28,7 @@ const BellIcon = ({ color = '#1F1655' }) => (
   </View>
 );
 
+// Custom profile icon
 const ProfileIcon = ({ color = '#1F1655' }) => (
   <View style={styles.profileMiniWrap}>
     <View style={[styles.profileHead, { backgroundColor: color }]} />
@@ -33,6 +36,7 @@ const ProfileIcon = ({ color = '#1F1655' }) => (
   </View>
 );
 
+// Custom search icon
 const SearchIcon = ({ color = '#8F8B9E' }) => (
   <View style={styles.searchIconWrap}>
     <View style={[styles.searchCircle, { borderColor: color }]} />
@@ -40,6 +44,7 @@ const SearchIcon = ({ color = '#8F8B9E' }) => (
   </View>
 );
 
+// Custom map pin icon
 const LocationPinIcon = () => (
   <View style={styles.pinWrap}>
     <View style={styles.pinCircle} />
@@ -47,6 +52,7 @@ const LocationPinIcon = () => (
   </View>
 );
 
+// Small location icon for details card
 const SmallLocationIcon = () => (
   <View style={styles.smallLocationWrap}>
     <View style={styles.smallLocationPin} />
@@ -54,6 +60,7 @@ const SmallLocationIcon = () => (
   </View>
 );
 
+// Placeholder image icon
 const ImagePlaceholderIcon = ({ color = '#8F8B9E', border = '#8F8B9E' }) => (
   <View style={styles.imageIconWrap}>
     <View style={[styles.imageBox, { borderColor: border }]} />
@@ -62,6 +69,7 @@ const ImagePlaceholderIcon = ({ color = '#8F8B9E', border = '#8F8B9E' }) => (
   </View>
 );
 
+// Route icon
 const RouteIcon = ({ color = '#3B2B93' }) => (
   <View style={styles.routeIconWrap}>
     <View style={[styles.routeDotTop, { backgroundColor: color }]} />
@@ -70,6 +78,7 @@ const RouteIcon = ({ color = '#3B2B93' }) => (
   </View>
 );
 
+// Details icon
 const DetailsIcon = ({ color = '#FFFFFF' }) => (
   <View style={styles.detailsIconWrap}>
     <View style={[styles.detailsLineLong, { backgroundColor: color }]} />
@@ -78,6 +87,7 @@ const DetailsIcon = ({ color = '#FFFFFF' }) => (
   </View>
 );
 
+// Default map region centered on Saudi Arabia
 const SAUDI_REGION = {
   latitude: 23.8859,
   longitude: 45.0792,
@@ -85,23 +95,30 @@ const SAUDI_REGION = {
   longitudeDelta: 12,
 };
 
+// Build Google Maps directions link
 const buildGoogleMapsDirectionsUrl = ({ latitude, longitude }) => {
   return `https://www.google.com/maps/dir/?api=1&destination=${latitude},${longitude}&travelmode=driving`;
 };
 
+// Build Google Maps search fallback link
 const buildGoogleMapsSearchUrl = ({ latitude, longitude, label }) => {
   const query = encodeURIComponent(label || `${latitude},${longitude}`);
+
   return `https://www.google.com/maps/search/?api=1&query=${query}`;
 };
 
 const MapScreen = ({ navigation }) => {
   const { colors, darkMode } = useTheme();
+
   const [jobs, setJobs] = useState([]);
-  const mapRef = useRef(null);
   const [userLocation, setUserLocation] = useState(null);
   const [selectedLocation, setSelectedLocation] = useState(null);
   const [mapRegion, setMapRegion] = useState(SAUDI_REGION);
+  const [showPermission, setShowPermission] = useState(true);
 
+  const mapRef = useRef(null);
+
+  // Screen color palette based on current theme
   const palette = {
     pageBg: colors.background,
     cardBg: colors.card,
@@ -128,83 +145,87 @@ const MapScreen = ({ navigation }) => {
     trackText: darkMode ? '#D5D1E4' : '#6B667C',
   };
 
-  const [showPermission, setShowPermission] = useState(true);
- useFocusEffect(
-  useCallback(() => {
-    const loadJobsAndLocation = async () => {
-      try {
-        const q = query(collection(db, 'jobs'), orderBy('createdAt', 'desc'));
-const snapshot = await getDocs(q);
+  // Load jobs from Firebase and request user location
+  useFocusEffect(
+    useCallback(() => {
+      const loadJobsAndLocation = async () => {
+        try {
+          const q = query(collection(db, 'jobs'), orderBy('createdAt', 'desc'));
+          const snapshot = await getDocs(q);
 
-const storedJobs = snapshot.docs.map((docSnap) => ({
-  id: docSnap.id,
-  ...docSnap.data(),
-}));
+          const storedJobs = snapshot.docs.map((docSnap) => ({
+            id: docSnap.id,
+            ...docSnap.data(),
+          }));
 
-console.log('FIREBASE MAP JOBS:', storedJobs);
-setJobs(storedJobs);
+          console.log('FIREBASE MAP JOBS:', storedJobs);
+          setJobs(storedJobs);
 
+          const { status } = await Location.requestForegroundPermissionsAsync();
 
-        const { status } = await Location.requestForegroundPermissionsAsync();
+          if (status === 'granted') {
+            const current = await Location.getCurrentPositionAsync({});
 
-        if (status === 'granted') {
-          const current = await Location.getCurrentPositionAsync({});
-          const coords = {
-            latitude: current.coords.latitude,
-            longitude: current.coords.longitude,
-          };
+            const coords = {
+              latitude: current.coords.latitude,
+              longitude: current.coords.longitude,
+            };
 
-          setUserLocation(coords);
+            setUserLocation(coords);
 
-          setMapRegion({
-            ...coords,
-            latitudeDelta: 0.08,
-            longitudeDelta: 0.08,
-          });
+            setMapRegion({
+              ...coords,
+              latitudeDelta: 0.08,
+              longitudeDelta: 0.08,
+            });
+          }
+        } catch (error) {
+          setJobs([]);
         }
-      } catch (error) {
-        setJobs([]);
-      }
-    };
+      };
 
-    loadJobsAndLocation();
-  }, [])
-);
+      loadJobsAndLocation();
+    }, [])
+  );
 
-const locations = useMemo(() => {
-  return jobs
-    .filter(
-  (job) =>
-    job.location &&
-    job.location.latitude != null &&
-    job.location.longitude != null
-)
-    .map((job) => ({
-      id: job.id,
-      title: job.title || job.jobTitle || 'فرصة وظيفية',
-      city: job.location?.city || job.city || 'موقع محدد',
-      company: job.orgName || 'جهة توظيف',
-      address: job.location?.address || 'موقع الوظيفة على الخريطة',
-      latitude: Number(job.location.latitude),
-      longitude: Number(job.location.longitude),
-      isNearby: false,
-      jobId: job.id,
-      description: job.description || 'لا يوجد وصف متاح حالياً لهذه الوظيفة.',
-      rawJob: job,
-    }));
-}, [jobs]);
-      
+  // Convert jobs with valid coordinates into map locations
+  const locations = useMemo(() => {
+    return jobs
+      .filter(
+        (job) =>
+          job.location &&
+          job.location.latitude != null &&
+          job.location.longitude != null
+      )
+      .map((job) => ({
+        id: job.id,
+        title: job.title || job.jobTitle || 'فرصة وظيفية',
+        city: job.location?.city || job.city || 'موقع محدد',
+        company: job.orgName || 'جهة توظيف',
+        address: job.location?.address || 'موقع الوظيفة على الخريطة',
+        latitude: Number(job.location.latitude),
+        longitude: Number(job.location.longitude),
+        isNearby: false,
+        jobId: job.id,
+        description: job.description || 'لا يوجد وصف متاح حالياً لهذه الوظيفة.',
+        rawJob: job,
+      }));
+  }, [jobs]);
 
+  // Close permission modal
   const handleAllow = useCallback(() => {
     setShowPermission(false);
   }, []);
 
+  // Close permission modal for app-only choice
   const handleAppOnly = useCallback(() => {
     setShowPermission(false);
   }, []);
 
+  // Select marker and update map region
   const handleMarkerPress = useCallback((loc) => {
     setSelectedLocation(loc);
+
     setMapRegion({
       latitude: loc.latitude,
       longitude: loc.longitude,
@@ -213,6 +234,7 @@ const locations = useMemo(() => {
     });
   }, []);
 
+  // Open selected job location in Google Maps
   const handleOpenDirections = useCallback(async () => {
     if (!selectedLocation) return;
 
@@ -223,6 +245,7 @@ const locations = useMemo(() => {
 
     try {
       const supported = await Linking.canOpenURL(url);
+
       if (supported) {
         await Linking.openURL(url);
         return;
@@ -240,16 +263,17 @@ const locations = useMemo(() => {
     }
   }, [selectedLocation]);
 
+  // Navigate to selected job details
   const handleOpenDetails = useCallback(() => {
-  if (!selectedLocation) {
-    Alert.alert('تنبيه', 'اختاري فرصة من الخريطة أولاً.');
-    return;
-  }
+    if (!selectedLocation) {
+      Alert.alert('تنبيه', 'اختاري فرصة من الخريطة أولاً.');
+      return;
+    }
 
-  navigation.navigate(SCREEN_NAMES.JOB_DETAILS, {
-    job: selectedLocation.rawJob,
-  });
-}, [navigation, selectedLocation]);
+    navigation.navigate(SCREEN_NAMES.JOB_DETAILS, {
+      job: selectedLocation.rawJob,
+    });
+  }, [navigation, selectedLocation]);
 
   return (
     <View style={[styles.container, { backgroundColor: palette.pageBg }]}>
@@ -258,15 +282,14 @@ const locations = useMemo(() => {
         backgroundColor={palette.pageBg}
       />
 
-      
+      {/* Header */}
       <View style={styles.headerRow}>
         <TouchableOpacity
-  
-  onPress={() => navigation.navigate(SCREEN_NAMES.NOTIFICATIONS)}
-  activeOpacity={0.85}
->
-  <BellIcon color={palette.iconColor} />
-</TouchableOpacity>
+          onPress={() => navigation.navigate(SCREEN_NAMES.NOTIFICATIONS)}
+          activeOpacity={0.85}
+        >
+          <BellIcon color={palette.iconColor} />
+        </TouchableOpacity>
 
         <Image
           source={require('../../assets/logo2.png')}
@@ -283,43 +306,44 @@ const locations = useMemo(() => {
         </TouchableOpacity>
       </View>
 
-      
+      {/* Map card */}
       <View style={[styles.mapWrapper, { backgroundColor: palette.mapCardBg }]}>
         <MapView
-  style={styles.map}
-  region={mapRegion}
-  initialRegion={SAUDI_REGION}
-  showsCompass
-  showsScale
-  showsUserLocation={!showPermission}
-  showsMyLocationButton={false}
-  toolbarEnabled={false}
->
-  {userLocation && (
-    <Marker
-      coordinate={userLocation}
-      title="موقعي الحالي"
-      description="أنت هنا"
-      pinColor="#36B487"
-    />
-  )}
+          ref={mapRef}
+          style={styles.map}
+          region={mapRegion}
+          initialRegion={SAUDI_REGION}
+          showsCompass
+          showsScale
+          showsUserLocation={!showPermission}
+          showsMyLocationButton={false}
+          toolbarEnabled={false}
+        >
+          {userLocation && (
+            <Marker
+              coordinate={userLocation}
+              title="موقعي الحالي"
+              description="أنت هنا"
+              pinColor="#36B487"
+            />
+          )}
 
-  {locations.map((loc) => (
-    <Marker
-      key={loc.id}
-      coordinate={{
-        latitude: loc.latitude,
-        longitude: loc.longitude,
-      }}
-      title={loc.title}
-      description={loc.city}
-      onPress={() => handleMarkerPress(loc)}
-    >
-      <LocationPinIcon />
-    </Marker>
-  ))}
-</MapView>
-        
+          {locations.map((loc) => (
+            <Marker
+              key={loc.id}
+              coordinate={{
+                latitude: loc.latitude,
+                longitude: loc.longitude,
+              }}
+              title={loc.title}
+              description={loc.city}
+              onPress={() => handleMarkerPress(loc)}
+            >
+              <LocationPinIcon />
+            </Marker>
+          ))}
+        </MapView>
+
         <TouchableOpacity
           style={[styles.searchMapBtn, { backgroundColor: palette.searchBtnBg }]}
           activeOpacity={0.85}
@@ -327,7 +351,6 @@ const locations = useMemo(() => {
           <SearchIcon color={palette.iconMuted} />
         </TouchableOpacity>
 
-       
         <TouchableOpacity
           style={[styles.backBtn, { backgroundColor: palette.backBtnBg }]}
           onPress={() => navigation.goBack()}
@@ -336,63 +359,62 @@ const locations = useMemo(() => {
           <Text style={[styles.backArrow, { color: palette.iconColor }]}>←</Text>
         </TouchableOpacity>
 
-        
+        {/* Bottom selected location card */}
         <View style={[styles.bottomCard, { backgroundColor: palette.cardBg }]}>
-          <View style={[styles.bottomHandle, { backgroundColor: palette.handleBg }]} />
+          <View
+            style={[styles.bottomHandle, { backgroundColor: palette.handleBg }]}
+          />
 
           <View style={styles.bottomCardContent}>
-  
-  <View style={styles.locationInfo}>
-    <Text style={[styles.locationTitle, { color: palette.text }]}>
-      {selectedLocation?.title || 'اختر فرصة من الخريطة'}
-    </Text>
+            <View style={styles.locationInfo}>
+              <Text style={[styles.locationTitle, { color: palette.text }]}>
+                {selectedLocation?.title || 'اختر فرصة من الخريطة'}
+              </Text>
 
-    <View style={styles.locationRow}>
-      <SmallLocationIcon />
-      <Text style={[styles.locationCity, { color: palette.trackText }]}>
-        {selectedLocation?.city || 'اضغط/ي على الدبوس لعرض التفاصيل'}
-      </Text>
-    </View>
+              <View style={styles.locationRow}>
+                <SmallLocationIcon />
 
-    <Text style={[styles.moreDetails, { color: palette.muted }]}>
-      {selectedLocation?.address || 'موقع الوظيفة على الخريطة'}
-    </Text>
+                <Text style={[styles.locationCity, { color: palette.trackText }]}>
+                  {selectedLocation?.city || 'اضغط/ي على الدبوس لعرض التفاصيل'}
+                </Text>
+              </View>
 
-    {selectedLocation?.isNearby && (
-      <View
-        style={[
-          styles.nearbyBadge,
-          { backgroundColor: palette.nearbyBg },
-        ]}
-      >
-        <Text
-          style={[
-            styles.nearbyText,
-            { color: palette.nearbyText },
-          ]}
-        >
-          قريب منك
-        </Text>
-      </View>
-    )}
-  </View>
+              <Text style={[styles.moreDetails, { color: palette.muted }]}>
+                {selectedLocation?.address || 'موقع الوظيفة على الخريطة'}
+              </Text>
 
-  
-  <View
-    style={[
-      styles.previewBox,
-      {
-        backgroundColor: palette.previewBg,
-        borderColor: palette.previewBorder,
-      },
-    ]}
-  >
-    <ImagePlaceholderIcon
-      color={palette.iconMuted}
-      border={palette.iconMuted}
-    />
-  </View>
-</View>
+              {selectedLocation?.isNearby && (
+                <View
+                  style={[
+                    styles.nearbyBadge,
+                    { backgroundColor: palette.nearbyBg },
+                  ]}
+                >
+                  <Text
+                    style={[styles.nearbyText, { color: palette.nearbyText }]}
+                  >
+                    قريب منك
+                  </Text>
+                </View>
+              )}
+            </View>
+
+            <View
+              style={[
+                styles.previewBox,
+                {
+                  backgroundColor: palette.previewBg,
+                  borderColor: palette.previewBorder,
+                },
+              ]}
+            >
+              <ImagePlaceholderIcon
+                color={palette.iconMuted}
+                border={palette.iconMuted}
+              />
+            </View>
+          </View>
+
           <View style={styles.actionButtonsRow}>
             <TouchableOpacity
               style={[
@@ -406,7 +428,10 @@ const locations = useMemo(() => {
               onPress={handleOpenDirections}
             >
               <RouteIcon color={palette.routeText} />
-              <Text style={[styles.secondaryBtnText, { color: palette.routeText }]}>
+
+              <Text
+                style={[styles.secondaryBtnText, { color: palette.routeText }]}
+              >
                 ابدأ المسار
               </Text>
             </TouchableOpacity>
@@ -417,13 +442,14 @@ const locations = useMemo(() => {
               onPress={handleOpenDetails}
             >
               <DetailsIcon color="#FFFFFF" />
+
               <Text style={styles.primaryBtnText}>عرض التفاصيل</Text>
             </TouchableOpacity>
           </View>
         </View>
       </View>
 
-      
+      {/* Location permission modal */}
       <Modal visible={showPermission} transparent animationType="fade">
         <View style={styles.modalOverlay}>
           <View style={[styles.modalCard, { backgroundColor: palette.modalBg }]}>
@@ -469,7 +495,10 @@ const locations = useMemo(() => {
             <TouchableOpacity
               style={[
                 styles.appOnlyBtn,
-                { borderColor: palette.primary, backgroundColor: palette.cardBg },
+                {
+                  borderColor: palette.primary,
+                  backgroundColor: palette.cardBg,
+                },
               ]}
               onPress={handleAppOnly}
               activeOpacity={0.88}
@@ -664,7 +693,6 @@ const styles = StyleSheet.create({
     textAlign: 'right',
     writingDirection: 'rtl',
     paddingHorizontal: 10,
-
   },
 
   locationRow: {
@@ -710,7 +738,6 @@ const styles = StyleSheet.create({
     marginTop: 8,
     writingDirection: 'rtl',
     paddingHorizontal: 10,
-
   },
 
   nearbyBadge: {
