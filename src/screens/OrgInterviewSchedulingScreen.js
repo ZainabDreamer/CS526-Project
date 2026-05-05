@@ -1,3 +1,4 @@
+// ================== IMPORTS ==================
 import React, { useState, useContext } from 'react';
 import {
   View,
@@ -22,19 +23,18 @@ import {
   updateDoc,
   serverTimestamp,
 } from 'firebase/firestore';
-
+// ================== MAIN SCREEN ==================
 const OrgInterviewSchedulingScreen = ({ navigation, route }) => {
   const { colors, darkMode } = useTheme();
   const { user } = useContext(AuthContext);
-
   const applicant = route?.params?.applicant;
-
+  // ================== STATE ==================
   const [type, setType] = useState('عن بعد');
   const [selectedDate, setSelectedDate] = useState(null);
   const [showDatePicker, setShowDatePicker] = useState(false);
-
+  // ================== OPTIONS ==================
   const options = ['حضورية', 'عن بعد', 'مترجم إشارة'];
-
+  // ================== THEME PALETTE ==================
   const palette = {
     bg: colors.background,
     card: colors.card,
@@ -48,14 +48,14 @@ const OrgInterviewSchedulingScreen = ({ navigation, route }) => {
     radioBorder: darkMode ? '#524B6B' : '#CFC9E8',
     radioDot: '#36B487',
   };
-
+  // ================== DATE HANDLER ==================
   const handleDateChange = (_, date) => {
     setShowDatePicker(false);
     if (date) {
       setSelectedDate(date);
     }
   };
-
+  // ================== DATE FORMATTER ==================
   const formatDate = (date) => {
     if (!date) return 'اختر التاريخ';
     return new Intl.DateTimeFormat('ar-SA', {
@@ -64,29 +64,24 @@ const OrgInterviewSchedulingScreen = ({ navigation, route }) => {
       day: 'numeric',
     }).format(date);
   };
-
+  // ================== SCREEN UI ==================
   return (
     <View style={[styles.container, { backgroundColor: palette.bg }]}>
       <StatusBar barStyle={darkMode ? 'light-content' : 'dark-content'} />
-
       <AppHeader navigation={navigation} />
-
       <ScrollView contentContainerStyle={styles.content} showsVerticalScrollIndicator={false}>
         <Text style={[styles.title, { color: palette.text }]}>
           تحديد موعد المقابلة
         </Text>
-
         {applicant && (
           <Text style={[styles.name, { color: palette.subText }]}>
             {applicant.name}
           </Text>
         )}
-
         <View style={[styles.card, { backgroundColor: palette.card }]}>
           <Text style={[styles.sectionTitle, { color: palette.primary }]}>
             نوع المقابلة
           </Text>
-
           {options.map((opt) => (
             <TouchableOpacity
               key={opt}
@@ -107,19 +102,16 @@ const OrgInterviewSchedulingScreen = ({ navigation, route }) => {
                   />
                 )}
               </View>
-
               <Text style={[styles.optionText, { color: palette.text }]}>
                 {opt}
               </Text>
             </TouchableOpacity>
           ))}
         </View>
-
         <View style={[styles.card, { backgroundColor: palette.card }]}>
           <Text style={[styles.sectionTitle, { color: palette.primary }]}>
             تاريخ المقابلة
           </Text>
-
           <TouchableOpacity
             style={[
               styles.datePickerButton,
@@ -142,7 +134,6 @@ const OrgInterviewSchedulingScreen = ({ navigation, route }) => {
               {formatDate(selectedDate)}
             </Text>
           </TouchableOpacity>
-
           {showDatePicker && (
             <DateTimePicker
               value={selectedDate || new Date()}
@@ -153,7 +144,6 @@ const OrgInterviewSchedulingScreen = ({ navigation, route }) => {
             />
           )}
         </View>
-
         <CustomButton
   title="إرسال الدعوة"
   onPress={async () => {
@@ -161,29 +151,22 @@ const OrgInterviewSchedulingScreen = ({ navigation, route }) => {
       Alert.alert('تاريخ مطلوب', 'يرجى اختيار تاريخ المقابلة.');
       return;
     }
-
    const payload = {
   orgId: user?.uid || user?.id || null,
   orgName: user?.orgName || user?.name || '',
-
   applicantId: applicant?.rawApplication?.applicantId || applicant?.applicantId || null,
   applicationId: applicant?.applicationId || applicant?.id || null,
-
   applicantName: applicant?.name || 'متقدم',
   applicantPhone: applicant?.phone || '',
   applicantEmail: applicant?.email || '',
-
   jobTitle: applicant?.jobTitle || '',
   type,
   date: selectedDate.toISOString(),
   status: 'scheduled',
-
   createdAt: serverTimestamp(),
 };
-
 try {
   await addDoc(collection(db, 'interviews'), payload);
-
   if (payload.applicationId) {
     await updateDoc(doc(db, 'applications', payload.applicationId), {
       status: 'interview_scheduled',
@@ -192,7 +175,6 @@ try {
       updatedAt: serverTimestamp(),
     });
   }
-
   Alert.alert('تم', 'تم إرسال دعوة المقابلة وحفظ الموعد.', [
     { text: 'حسنًا', onPress: () => navigation.goBack() },
   ]);
@@ -208,17 +190,15 @@ try {
     </View>
   );
 };
-
+// ================== STYLES ==================
 const styles = StyleSheet.create({
   container: {
     flex: 1,
   },
-
   content: {
     padding: 20,
     paddingBottom: 30,
   },
-
   title: {
     fontSize: 20,
     fontWeight: '800',
@@ -226,20 +206,17 @@ const styles = StyleSheet.create({
     writingDirection: 'rtl',
     marginBottom: 6,
   },
-
   name: {
     fontSize: 14,
     textAlign: 'right',
     writingDirection: 'rtl',
     marginBottom: 20,
   },
-
   card: {
     borderRadius: 20,
     padding: 16,
     marginBottom: 16,
   },
-
   sectionTitle: {
     fontSize: 14,
     fontWeight: '800',
@@ -247,20 +224,17 @@ const styles = StyleSheet.create({
     writingDirection: 'rtl',
     marginBottom: 12,
   },
-
   optionRow: {
     flexDirection: 'row-reverse',
     alignItems: 'center',
     marginBottom: 14,
   },
-
   optionText: {
     marginRight: 10,
     fontSize: 14,
     textAlign: 'right',
     writingDirection: 'rtl',
   },
-
   radio: {
     width: 20,
     height: 20,
@@ -269,13 +243,11 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
   },
-
   dot: {
     width: 10,
     height: 10,
     borderRadius: 5,
   },
-
   datePickerButton: {
     minHeight: 54,
     borderRadius: 16,
@@ -283,19 +255,16 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     paddingHorizontal: 16,
   },
-
   datePickerText: {
     fontSize: 15,
     textAlign: 'right',
     writingDirection: 'rtl',
   },
-
   submitButton: {
     marginTop: 8,
     borderRadius: 18,
     paddingVertical: 14,
   },
-
   submitButtonText: {
     color: '#FFFFFF',
     fontSize: 16,
@@ -303,5 +272,4 @@ const styles = StyleSheet.create({
     writingDirection: 'rtl',
   },
 });
-
 export default OrgInterviewSchedulingScreen;
