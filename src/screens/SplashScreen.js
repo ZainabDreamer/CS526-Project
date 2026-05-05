@@ -9,11 +9,13 @@ import {
   Image,
 } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
+
 import { SCREEN_NAMES } from '../constants/labels';
 
 const { height } = Dimensions.get('window');
 
 const SplashScreen = ({ navigation }) => {
+  // Navigate to onboarding after splash duration
   useEffect(() => {
     const timer = setTimeout(() => {
       navigation.replace(SCREEN_NAMES.ONBOARDING);
@@ -24,17 +26,21 @@ const SplashScreen = ({ navigation }) => {
 
   return (
     <View style={styles.container}>
-      <StatusBar barStyle="light-content" translucent backgroundColor="transparent" />
+      <StatusBar
+        barStyle="light-content"
+        translucent
+        backgroundColor="transparent"
+      />
 
       <ImageBackground
         source={require('../../assets/splash_person.png')}
         style={styles.backgroundImage}
         resizeMode="cover"
       >
-        
+        {/* Soft white overlay */}
         <View style={styles.softOverlay} />
 
-        
+        {/* Bottom dark gradient */}
         <LinearGradient
           colors={[
             '#241c5600',
@@ -49,18 +55,16 @@ const SplashScreen = ({ navigation }) => {
           style={styles.gradient}
         />
 
-        
+        {/* Splash slogan */}
         <View style={styles.textBlock}>
           <Text style={styles.line1}>
             لأن <Text style={styles.greenText}>الشــــــــــــمولية</Text>
           </Text>
 
-          <Text style={styles.line2}>
-            حق يُقــــاس ويُطبَّــــق
-          </Text>
+          <Text style={styles.line2}>حق يُقــــاس ويُطبَّــــق</Text>
         </View>
 
-        
+        {/* App logo */}
         <View style={styles.logoWrapper}>
           <Image
             source={require('../../assets/logo.png')}
@@ -68,7 +72,6 @@ const SplashScreen = ({ navigation }) => {
             resizeMode="contain"
           />
         </View>
-
       </ImageBackground>
     </View>
   );
@@ -123,9 +126,9 @@ const styles = StyleSheet.create({
   },
 
   greenText: {
-    color: '#36B487', 
+    color: '#36B487',
   },
-  
+
   logoWrapper: {
     position: 'absolute',
     bottom: 34,
