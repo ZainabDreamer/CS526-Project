@@ -159,7 +159,7 @@ const profileItems = [
      return;
     }
     if (key === 'data') {
-      navigation.navigate(SCREEN_NAMES.MY_DATA);
+       navigation.navigate('MY_DATA_SCREEN_ROUTE');
       return;
     }
 
