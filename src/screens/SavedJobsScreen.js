@@ -11,20 +11,15 @@ import {
 } from 'react-native';
 import { useFocusEffect } from '@react-navigation/native';
 import Svg, { Circle } from 'react-native-svg';
+import { collection, query, where, getDocs, deleteDoc, doc } from 'firebase/firestore';
+
 import { useTheme } from '../context/ThemeContext';
 import AppHeader from '../components/AppHeader';
 import { SCREEN_NAMES } from '../constants/labels';
 import { AuthContext } from '../context/AuthContext';
 import { db } from '../services/firebase';
-import {
-  collection,
-  query,
-  where,
-  getDocs,
-  deleteDoc,
-  doc,
-} from 'firebase/firestore';
 
+// Custom search icon
 const SearchIcon = ({ color = '#8F8B9E' }) => (
   <View style={styles.searchIconWrap}>
     <View style={[styles.searchCircle, { borderColor: color }]} />
@@ -32,10 +27,12 @@ const SearchIcon = ({ color = '#8F8B9E' }) => (
   </View>
 );
 
+// Custom saved/bookmark icon
 const BookmarkIcon = ({ color = '#4B3F72' }) => (
   <Text style={{ color, fontSize: 22, fontWeight: '900' }}>♥️</Text>
 );
 
+// Custom location icon
 const LocationIcon = () => (
   <View style={styles.locationWrap}>
     <View style={styles.locationPin} />
@@ -43,6 +40,7 @@ const LocationIcon = () => (
   </View>
 );
 
+// Circular score indicator
 const ProgressRing = ({ percentage = 0, color, textColor, trackColor }) => {
   const size = 76;
   const strokeWidth = 9;
@@ -61,6 +59,7 @@ const ProgressRing = ({ percentage = 0, color, textColor, trackColor }) => {
           r={radius}
           strokeWidth={strokeWidth}
         />
+
         <Circle
           stroke={color}
           fill="none"
@@ -87,9 +86,12 @@ const ProgressRing = ({ percentage = 0, color, textColor, trackColor }) => {
 const SavedJobsScreen = ({ navigation }) => {
   const { colors, darkMode } = useTheme();
   const { user } = useContext(AuthContext);
+
+  // Screen states
   const [savedJobs, setSavedJobs] = useState([]);
   const [search, setSearch] = useState('');
 
+  // Screen color palette based on current theme
   const palette = {
     pageBg: colors.background,
     cardBg: colors.card,
@@ -105,63 +107,67 @@ const SavedJobsScreen = ({ navigation }) => {
     green: '#36B487',
   };
 
+  // Load saved jobs and count evaluations for each organization
   const loadSavedJobs = async () => {
-  try {
-    const userId = user?.uid || user?.id;
+    try {
+      const userId = user?.uid || user?.id;
 
-    if (!userId) {
+      if (!userId) {
+        setSavedJobs([]);
+        return;
+      }
+
+      const savedQuery = query(
+        collection(db, 'savedJobs'),
+        where('userId', '==', userId)
+      );
+
+      const savedSnapshot = await getDocs(savedQuery);
+      const evaluationsSnapshot = await getDocs(collection(db, 'evaluations'));
+
+      const evaluations = evaluationsSnapshot.docs.map((docSnap) => ({
+        id: docSnap.id,
+        ...docSnap.data(),
+      }));
+
+      const evaluationsCountByOrg = {};
+
+      evaluations.forEach((evaluation) => {
+        const orgId = evaluation.orgId || evaluation.company?.id;
+
+        if (!orgId) return;
+
+        evaluationsCountByOrg[orgId] =
+          (evaluationsCountByOrg[orgId] || 0) + 1;
+      });
+
+      const data = savedSnapshot.docs.map((docSnap) => {
+        const savedData = docSnap.data();
+        const job = savedData.job || {};
+        const orgId = job.orgId || savedData.orgId || job.company?.id;
+
+        return {
+          savedDocId: docSnap.id,
+          ...job,
+          evaluationsCount: evaluationsCountByOrg[orgId] || 0,
+        };
+      });
+
+      setSavedJobs(data);
+    } catch (error) {
+      console.log('LOAD SAVED JOBS ERROR:', error);
       setSavedJobs([]);
-      return;
     }
+  };
 
-    const savedQuery = query(
-      collection(db, 'savedJobs'),
-      where('userId', '==', userId)
-    );
-
-    const savedSnapshot = await getDocs(savedQuery);
-    const evaluationsSnapshot = await getDocs(collection(db, 'evaluations'));
-
-    const evaluations = evaluationsSnapshot.docs.map((docSnap) => ({
-      id: docSnap.id,
-      ...docSnap.data(),
-    }));
-
-    const evaluationsCountByOrg = {};
-
-    evaluations.forEach((evaluation) => {
-      const orgId = evaluation.orgId || evaluation.company?.id;
-      if (!orgId) return;
-
-      evaluationsCountByOrg[orgId] =
-        (evaluationsCountByOrg[orgId] || 0) + 1;
-    });
-
-    const data = savedSnapshot.docs.map((docSnap) => {
-      const savedData = docSnap.data();
-      const job = savedData.job || {};
-      const orgId = job.orgId || savedData.orgId || job.company?.id;
-
-      return {
-        savedDocId: docSnap.id,
-        ...job,
-        evaluationsCount: evaluationsCountByOrg[orgId] || 0,
-      };
-    });
-
-    setSavedJobs(data);
-  } catch (error) {
-    console.log('LOAD SAVED JOBS ERROR:', error);
-    setSavedJobs([]);
-  }
-};
-
+  // Reload saved jobs when the screen is focused
   useFocusEffect(
     useCallback(() => {
       loadSavedJobs();
     }, [user])
   );
 
+  // Filter saved jobs based on search text
   const filteredJobs = useMemo(() => {
     if (!search.trim()) return savedJobs;
 
@@ -170,32 +176,35 @@ const SavedJobsScreen = ({ navigation }) => {
     return savedJobs.filter((job) => {
       const title = String(job.title || '').toLowerCase();
       const company = String(job.company || job.orgName || '').toLowerCase();
-      const location = String(job.location?.city || job.location || job.city || job.workEnv || '').toLowerCase();
+      const location = String(
+        job.location?.city || job.location || job.city || job.workEnv || ''
+      ).toLowerCase();
 
       return title.includes(q) || company.includes(q) || location.includes(q);
     });
   }, [savedJobs, search]);
 
+  // Remove saved job from Firestore and local state
   const handleRemove = (job) => {
-  Alert.alert('إزالة الوظيفة', 'هل تريد/ين حذف هذه الوظيفة من المحفوظات؟', [
-    { text: 'إلغاء', style: 'cancel' },
-    {
-      text: 'حذف',
-      style: 'destructive',
-      onPress: async () => {
-        try {
-          if (job.savedDocId) {
-            await deleteDoc(doc(db, 'savedJobs', job.savedDocId));
-          }
+    Alert.alert('إزالة الوظيفة', 'هل تريد/ين حذف هذه الوظيفة من المحفوظات؟', [
+      { text: 'إلغاء', style: 'cancel' },
+      {
+        text: 'حذف',
+        style: 'destructive',
+        onPress: async () => {
+          try {
+            if (job.savedDocId) {
+              await deleteDoc(doc(db, 'savedJobs', job.savedDocId));
+            }
 
-          setSavedJobs((prev) => prev.filter((item) => item.id !== job.id));
-        } catch (error) {
-          Alert.alert('خطأ', 'تعذر حذف الوظيفة من المحفوظات.');
-        }
+            setSavedJobs((prev) => prev.filter((item) => item.id !== job.id));
+          } catch (error) {
+            Alert.alert('خطأ', 'تعذر حذف الوظيفة من المحفوظات.');
+          }
+        },
       },
-    },
-  ]);
-};
+    ]);
+  };
 
   return (
     <View style={[styles.container, { backgroundColor: palette.pageBg }]}>
@@ -215,15 +224,18 @@ const SavedJobsScreen = ({ navigation }) => {
           horizontalPadding={5}
         />
 
+        {/* Page title */}
         <View style={styles.titleBlock}>
           <Text style={[styles.pageTitle, { color: palette.text }]}>
             الوظائف المحفوظة
           </Text>
+
           <Text style={[styles.pageSubtitle, { color: palette.subText }]}>
             استعرض/ي الفرص التي قمت بحفظها للرجوع إليها لاحقًا
           </Text>
         </View>
 
+        {/* Search bar */}
         <View style={[styles.searchBar, { backgroundColor: palette.cardBg }]}>
           <View style={styles.searchRightIcon}>
             <SearchIcon color={palette.iconMuted} />
@@ -239,6 +251,7 @@ const SavedJobsScreen = ({ navigation }) => {
           />
         </View>
 
+        {/* Saved jobs summary card */}
         <View style={[styles.heroCard, { backgroundColor: palette.primary }]}>
           <View style={styles.heroIcon}>
             <BookmarkIcon color="#FFFFFF" />
@@ -246,19 +259,28 @@ const SavedJobsScreen = ({ navigation }) => {
 
           <View style={styles.heroTextBlock}>
             <Text style={styles.heroTitle}>
-            لديك {savedJobs.length} وظيفة محفوظة
+              لديك {savedJobs.length} وظيفة محفوظة
             </Text>
+
             <Text style={styles.heroSubtitle}>
               يمكنك فتح التفاصيل أو إزالة الوظيفة من القائمة في أي وقت.
             </Text>
           </View>
         </View>
 
+        {/* Saved jobs list */}
         {filteredJobs.length > 0 ? (
           filteredJobs.map((job) => {
-            const score = Number(job.score || job.inclusivity || job.inclusivityScore || 0);
+            const score = Number(
+              job.score || job.inclusivity || job.inclusivityScore || 0
+            );
+
             const scoreColor =
-              score >= 80 ? palette.green : score >= 60 ? '#F39A57' : palette.danger;
+              score >= 80
+                ? palette.green
+                : score >= 60
+                  ? '#F39A57'
+                  : palette.danger;
 
             return (
               <TouchableOpacity
@@ -279,9 +301,10 @@ const SavedJobsScreen = ({ navigation }) => {
                       textColor={palette.text}
                       trackColor={palette.ringTrack}
                     />
+
                     <Text style={[styles.scoreLabel, { color: palette.subText }]}>
                       {job.evaluationsCount > 0
-                       ? `${job.evaluationsCount} تقييم`
+                        ? `${job.evaluationsCount} تقييم`
                         : 'لا توجد تقييمات'}
                     </Text>
                   </View>
@@ -297,8 +320,13 @@ const SavedJobsScreen = ({ navigation }) => {
 
                     <View style={styles.locationRow}>
                       <LocationIcon />
+
                       <Text style={[styles.locationText, { color: palette.text }]}>
-                        {job.location?.city || job.location || job.city || job.workEnv || 'غير محدد'}
+                        {job.location?.city ||
+                          job.location ||
+                          job.city ||
+                          job.workEnv ||
+                          'غير محدد'}
                       </Text>
                     </View>
 
@@ -320,13 +348,21 @@ const SavedJobsScreen = ({ navigation }) => {
                     onPress={() => handleRemove(job)}
                     activeOpacity={0.88}
                   >
-                    <Text style={[styles.removeButtonText, { color: palette.danger }]}>
+                    <Text
+                      style={[
+                        styles.removeButtonText,
+                        { color: palette.danger },
+                      ]}
+                    >
                       إزالة من المحفوظات
                     </Text>
                   </TouchableOpacity>
 
                   <TouchableOpacity
-                    style={[styles.detailsButton, { backgroundColor: palette.primary }]}
+                    style={[
+                      styles.detailsButton,
+                      { backgroundColor: palette.primary },
+                    ]}
                     onPress={() =>
                       navigation.navigate(SCREEN_NAMES.JOB_DETAILS, {
                         job,
@@ -353,6 +389,7 @@ const SavedJobsScreen = ({ navigation }) => {
             <Text style={[styles.emptyTitle, { color: palette.text }]}>
               لا توجد وظائف محفوظة
             </Text>
+
             <Text style={[styles.emptyText, { color: palette.subText }]}>
               عند حفظ أي وظيفة ستظهر هنا لتتمكن/ي من الرجوع إليها لاحقًا.
             </Text>
